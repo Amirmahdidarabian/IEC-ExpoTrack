@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Exhibition {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  tagline     String   @default("")
+  industry    String   @default("Energy")
+  eventType   String   @default("International Exhibition")
+  country     String
+  city        String   @default("")
+  venue       String   @default("")
+  address     String   @default("")
+  startDate   DateTime
+  endDate     DateTime?
+  timezone    String   @default("UTC")
+  organizer   String   @default("")
+  website     String   @default("")
+  description String   @default("")
+  aiReport    String   @default("")
+  topics      Json
+  saved       Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  sources     Source[]
+
+  @@index([startDate])
+  @@index([country])
+  @@index([industry])
+}
+
+model Source {
+  id           String     @id @default(cuid())
+  label        String
+  url          String
+  lastChecked  DateTime
+  priority     Int        @default(5)
+  exhibitionId String
+  exhibition   Exhibition @relation(fields: [exhibitionId], references: [id], onDelete: Cascade)
+
+  @@index([exhibitionId])
+}
