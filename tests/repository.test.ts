@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { listExhibitions, sortItems } from "@/lib/exhibitions/repository";
+import { createExhibition, deleteExhibition, listExhibitions, sortItems } from "@/lib/exhibitions/repository";
+import { seedExhibitions } from "@/lib/exhibitions/seed-data";
 import type { Exhibition } from "@/lib/exhibitions/types";
 
 function event(id: string, startDate: string, endDate: string | null = startDate): Exhibition {
@@ -19,5 +20,18 @@ describe("exhibition queries", () => {
   it("orders ongoing, then future nearest-first, then recently ended", () => {
     const items = [event("april", "2027-04-06T12:00:00Z"), event("past-old", "2026-08-01T12:00:00Z"), event("november", "2026-11-11T12:00:00Z"), event("ongoing", "2026-09-17T12:00:00Z", "2026-09-20T12:00:00Z"), event("october", "2026-10-05T12:00:00Z"), event("september", "2026-09-25T12:00:00Z")];
     expect(sortItems(items, "nearest", "2026-09-18T12:00:00Z").map((item) => item.id)).toEqual(["ongoing", "september", "october", "november", "april", "past-old"]);
+  });
+  it("keeps development CRUD functional when PostgreSQL is unavailable", async () => {
+    const source = seedExhibitions[0];
+    const created = await createExhibition({
+      name: `Repository smoke ${Date.now()}`, tagline: "", industry: source.industry,
+      categoryIds: source.categories.map((item) => item.id), topicIds: source.topicItems.slice(0, 1).map((item) => item.id),
+      eventType: source.eventType, country: source.country, countryCode: source.countryCode, city: source.city,
+      venue: "", address: "", startDate: "2028-06-01T12:00:00.000Z", endDate: null,
+      timezone: source.timezone, organizer: "", website: "", description: "", aiReport: "", topics: [], sources: [],
+    }, { allowDuplicate: true });
+    expect(created.countryCode).toBe("SG");
+    expect(created.categories[0]?.id).toBe(source.categories[0].id);
+    await deleteExhibition(created.id);
   });
 });
