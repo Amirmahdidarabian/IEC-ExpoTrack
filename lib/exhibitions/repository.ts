@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { exhibitionSchema } from "./schema";
 import { getEventStatus } from "./dates";
+import { normalizeDateOnly } from "./dates";
+import { findLikelyDuplicates } from "./duplicate";
 import { seedExhibitions } from "./seed-data";
 import type { Exhibition, ExhibitionFilters, ExhibitionInput, ExhibitionListResult } from "./types";
 
@@ -54,12 +57,47 @@ function filterDemo(items: Exhibition[], filters: ExhibitionFilters) {
   });
 }
 
-function sortItems(items: Exhibition[], sort = "nearest") {
+function databaseWhere(filters: ExhibitionFilters, forcedStatus?: "upcoming" | "ongoing" | "past"): Prisma.ExhibitionWhereInput {
+  const conditions: Prisma.ExhibitionWhereInput[] = [];
+  const q = filters.q?.trim();
+  if (q) conditions.push({ OR: ["name", "industry", "country", "city", "venue", "organizer"].map((field) => ({ [field]: { contains: q, mode: "insensitive" } })) as Prisma.ExhibitionWhereInput[] });
+  if (filters.country) conditions.push({ country: filters.country });
+  if (filters.industry) conditions.push({ industry: filters.industry });
+  if (filters.topic) conditions.push({ topics: { array_contains: [filters.topic] } });
+  if (filters.year) {
+    const year = Number(filters.year);
+    if (Number.isInteger(year)) conditions.push({ startDate: { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) } });
+  }
+  const status = forcedStatus ?? (filters.status && filters.status !== "all" ? filters.status : undefined);
+  if (status) {
+    const now = new Date(); const startOfToday = new Date(now); const endOfToday = new Date(now);
+    startOfToday.setUTCHours(0, 0, 0, 0); endOfToday.setUTCHours(23, 59, 59, 999);
+    if (status === "upcoming") conditions.push({ startDate: { gt: endOfToday } });
+    if (status === "ongoing") conditions.push({ startDate: { lte: endOfToday }, OR: [{ endDate: { gte: startOfToday } }, { endDate: null, startDate: { gte: startOfToday, lte: endOfToday } }] });
+    if (status === "past") conditions.push({ OR: [{ endDate: { lt: startOfToday } }, { endDate: null, startDate: { lt: startOfToday } }] });
+  }
+  return conditions.length ? { AND: conditions } : {};
+}
+
+function databaseOrder(sort = "nearest", status?: "upcoming" | "ongoing" | "past"): Prisma.ExhibitionOrderByWithRelationInput[] {
+  if (sort === "latest") return [{ startDate: "desc" }];
+  if (sort === "name") return [{ name: "asc" }];
+  if (sort === "country") return [{ country: "asc" }, { name: "asc" }];
+  if (sort === "recent") return [{ createdAt: "desc" }];
+  return status === "past" ? [{ endDate: "desc" }, { startDate: "desc" }] : [{ startDate: "asc" }];
+}
+
+export function sortItems(items: Exhibition[], sort = "nearest", now: string | Date = new Date()) {
   return [...items].sort((a, b) => {
     if (sort === "latest") return +new Date(b.startDate) - +new Date(a.startDate);
     if (sort === "name") return a.name.localeCompare(b.name);
     if (sort === "country") return a.country.localeCompare(b.country) || a.name.localeCompare(b.name);
     if (sort === "recent") return +new Date(b.createdAt) - +new Date(a.createdAt);
+    const stateA = getEventStatus(a.startDate, a.endDate, now, a.timezone).state;
+    const stateB = getEventStatus(b.startDate, b.endDate, now, b.timezone).state;
+    const rank = { ongoing: 0, upcoming: 1, past: 2 };
+    if (rank[stateA] !== rank[stateB]) return rank[stateA] - rank[stateB];
+    if (stateA === "past") return +new Date(b.endDate ?? b.startDate) - +new Date(a.endDate ?? a.startDate);
     return +new Date(a.startDate) - +new Date(b.startDate);
   });
 }
@@ -67,17 +105,38 @@ function sortItems(items: Exhibition[], sort = "nearest") {
 export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<ExhibitionListResult> {
   const pageSize = Math.min(50, Math.max(1, filters.pageSize ?? 10));
   const page = Math.max(1, filters.page ?? 1);
-  let all: Exhibition[];
   if (useDatabase) {
     try {
-      const records = await prisma.exhibition.findMany({ include: { sources: { orderBy: { priority: "asc" } } } });
-      all = records.map((record: unknown) => mapRecord(record as Record<string, unknown>));
+      const offset = (page - 1) * pageSize;
+      const include = { sources: { orderBy: { priority: "asc" as const } } };
+      let records: unknown[] = []; let total = 0;
+      if ((filters.sort ?? "nearest") === "nearest" && (filters.status ?? "all") === "all") {
+        const groups = ["ongoing", "upcoming", "past"] as const;
+        const counts = await Promise.all(groups.map((status) => prisma.exhibition.count({ where: databaseWhere(filters, status) })));
+        total = counts.reduce((sum, count) => sum + count, 0);
+        let remainingOffset = offset; let remainingTake = pageSize;
+        for (let index = 0; index < groups.length && remainingTake > 0; index++) {
+          if (remainingOffset >= counts[index]) { remainingOffset -= counts[index]; continue; }
+          const chunk = await prisma.exhibition.findMany({ where: databaseWhere(filters, groups[index]), orderBy: databaseOrder("nearest", groups[index]), skip: remainingOffset, take: remainingTake, include });
+          records.push(...chunk); remainingTake -= chunk.length; remainingOffset = 0;
+        }
+      } else {
+        const where = databaseWhere(filters); total = await prisma.exhibition.count({ where });
+        const status = filters.status && filters.status !== "all" ? filters.status : undefined;
+        records = await prisma.exhibition.findMany({ where, orderBy: databaseOrder(filters.sort, status), skip: offset, take: pageSize, include });
+      }
+      const optionRows = await prisma.exhibition.findMany({ select: { country: true, industry: true, startDate: true } });
+      return {
+        items: records.map((record) => mapRecord(record as Record<string, unknown>)), total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)),
+        stats: { total: optionRows.length, countries: new Set(optionRows.map((item) => item.country).filter(Boolean)).size, industries: new Set(optionRows.map((item) => item.industry).filter(Boolean)).size },
+        options: { countries: [...new Set(optionRows.map((item) => item.country).filter(Boolean))].sort(), industries: [...new Set(optionRows.map((item) => item.industry).filter(Boolean))].sort(), years: [...new Set(optionRows.map((item) => String(item.startDate.getUTCFullYear())))].sort() },
+      };
     } catch (error) {
       if (!canUseDemoFallback(error)) throw error;
       reportDemoFallback(error);
-      all = globalStore.iecDemoExhibitions!;
     }
-  } else all = globalStore.iecDemoExhibitions!;
+  }
+  const all = globalStore.iecDemoExhibitions!;
 
   const filtered = sortItems(filterDemo(all, filters), filters.sort);
   const total = filtered.length;
@@ -105,12 +164,41 @@ export async function getExhibition(identifier: string) {
   return globalStore.iecDemoExhibitions!.find((item) => item.id === identifier || item.slug === identifier) ?? null;
 }
 
-export async function createExhibition(raw: ExhibitionInput) {
-  const input = exhibitionSchema.parse(raw);
-  const duplicate = (await listExhibitions({ pageSize: 50 })).items.find((item) => item.name.toLowerCase() === input.name.toLowerCase() && item.startDate.slice(0, 10) === input.startDate.slice(0, 10));
-  if (duplicate) throw new Error("An exhibition with the same name and start date already exists.");
+function validatedInput(raw: ExhibitionInput) {
+  return exhibitionSchema.parse({ ...raw, startDate: normalizeDateOnly(raw.startDate), endDate: raw.endDate ? normalizeDateOnly(raw.endDate) : null });
+}
+
+export class DuplicateExhibitionError extends Error {
+  code = "POSSIBLE_DUPLICATE" as const;
+  constructor(public duplicates: ReturnType<typeof findLikelyDuplicates>) { super("A possible duplicate exhibition was found."); }
+}
+
+export async function findDuplicateExhibitions(raw: ExhibitionInput, excludeId?: string) {
+  const input = validatedInput(raw);
+  let candidates: Exhibition[];
+  if (useDatabase) {
+    try {
+      const start = new Date(input.startDate); const from = new Date(start); const to = new Date(start);
+      from.setUTCFullYear(start.getUTCFullYear() - 1); to.setUTCFullYear(start.getUTCFullYear() + 1);
+      const records = await prisma.exhibition.findMany({ where: { id: excludeId ? { not: excludeId } : undefined, OR: [{ country: { equals: input.country, mode: "insensitive" } }, { startDate: { gte: from, lte: to } }] }, include: { sources: { orderBy: { priority: "asc" } } }, take: 50 });
+      candidates = records.map((record: unknown) => mapRecord(record as Record<string, unknown>));
+    } catch (error) {
+      if (!canUseDemoFallback(error)) throw error;
+      reportDemoFallback(error); candidates = globalStore.iecDemoExhibitions!.filter((item) => item.id !== excludeId);
+    }
+  } else candidates = globalStore.iecDemoExhibitions!.filter((item) => item.id !== excludeId);
+  return findLikelyDuplicates(candidates, input);
+}
+
+export async function createExhibition(raw: ExhibitionInput, options: { allowDuplicate?: boolean } = {}) {
+  const input = validatedInput(raw);
+  if (!options.allowDuplicate) {
+    const duplicates = await findDuplicateExhibitions(input);
+    if (duplicates.length) throw new DuplicateExhibitionError(duplicates);
+  }
   let slug = slugify(input.name);
   if (await getExhibition(slug)) slug = `${slug}-${slugify(input.city || input.country)}`;
+  if (await getExhibition(slug)) slug = `${slug}-${Date.now().toString(36)}`;
   if (useDatabase) {
     const record = await prisma.exhibition.create({ data: { ...input, slug, startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null, topics: input.topics, sources: { create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) } }, include: { sources: true } });
     return mapRecord(record as unknown as Record<string, unknown>);
@@ -121,8 +209,12 @@ export async function createExhibition(raw: ExhibitionInput) {
   return item;
 }
 
-export async function updateExhibition(id: string, raw: ExhibitionInput) {
-  const input = exhibitionSchema.parse(raw);
+export async function updateExhibition(id: string, raw: ExhibitionInput, options: { skipDuplicateCheck?: boolean } = {}) {
+  const input = validatedInput(raw);
+  if (!options.skipDuplicateCheck) {
+    const duplicates = await findDuplicateExhibitions(input, id);
+    if (duplicates.length) throw new DuplicateExhibitionError(duplicates);
+  }
   if (useDatabase) {
     const record = await prisma.exhibition.update({ where: { id }, data: { ...input, startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null, sources: { deleteMany: {}, create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) } }, include: { sources: true } });
     return mapRecord(record as unknown as Record<string, unknown>);

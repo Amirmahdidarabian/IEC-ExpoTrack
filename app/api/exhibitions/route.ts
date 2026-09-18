@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createExhibition, listExhibitions } from "@/lib/exhibitions/repository";
+import { createExhibition, DuplicateExhibitionError, findDuplicateExhibitions, listExhibitions, updateExhibition } from "@/lib/exhibitions/repository";
+import type { ExhibitionInput } from "@/lib/exhibitions/types";
 
 export async function GET(request: NextRequest) {
   const p = request.nextUrl.searchParams;
@@ -16,8 +17,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    return NextResponse.json(await createExhibition(await request.json()), { status: 201 });
+    const payload = await request.json();
+    const input = (payload.exhibition ?? payload) as ExhibitionInput;
+    const resolution = payload.duplicateResolution as string | undefined;
+    if (resolution === "replace" && payload.duplicateId) {
+      const matches = await findDuplicateExhibitions(input);
+      if (!matches.some((item) => item.id === payload.duplicateId)) return NextResponse.json({ error: "Duplicate candidate is no longer available." }, { status: 409 });
+      return NextResponse.json(await updateExhibition(payload.duplicateId, input, { skipDuplicateCheck: true }));
+    }
+    return NextResponse.json(await createExhibition(input, { allowDuplicate: resolution === "keep-both" }), { status: 201 });
   } catch (error) {
+    if (error instanceof DuplicateExhibitionError) return NextResponse.json({ code: error.code, error: error.message, duplicates: error.duplicates }, { status: 409 });
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to add exhibition" }, { status: 400 });
   }
 }

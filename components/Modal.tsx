@@ -7,7 +7,17 @@ export function Modal({ children, onClose, className = "", label, noClose = fals
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    const handler = (event: KeyboardEvent) => { if (event.key === "Escape" && !noClose) onClose(); };
+    const handler = (event: KeyboardEvent) => {
+      const dialogs = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')];
+      if (dialogs.at(-1) !== ref.current) return;
+      if (event.key === "Escape" && !noClose) { event.preventDefault(); onClose(); return; }
+      if (event.key !== "Tab" || !ref.current) return;
+      const focusable = [...ref.current.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+      if (!focusable.length) { event.preventDefault(); ref.current.focus(); return; }
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
     document.addEventListener("keydown", handler);
     ref.current?.focus();
     return () => { document.removeEventListener("keydown", handler); previous?.focus(); };

@@ -4,7 +4,7 @@ import { Bookmark, Building2, CalendarDays, ChevronLeft, ChevronRight, EllipsisV
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { formatEventDate, getEventStatus } from "@/lib/exhibitions/dates";
+import { formatEventDate, formatPersianEventDate, getEventStatus } from "@/lib/exhibitions/dates";
 import type { Exhibition, ExhibitionListResult, StatusKey } from "@/lib/exhibitions/types";
 import { Modal } from "./Modal";
 import { ReviewModal } from "./ReviewModal";
@@ -40,12 +40,12 @@ export function ExhibitionExplorer({ result }: { result: ExhibitionListResult })
     <div className="active-row"><div>{active.map(([key, value]) => <button key={key} className="active-chip" onClick={() => update({ [key]: null })}>{key[0].toUpperCase() + key.slice(1)}: {value} ×</button>)}{active.length > 0 && <button className="clear-link" onClick={() => update({ country: null, industry: null, year: null, topic: null })}>Clear all</button>}</div><span>Showing {result.total ? (result.page - 1) * result.pageSize + 1 : 0}–{Math.min(result.page * result.pageSize, result.total)} of {result.total} exhibitions</span></div>
     <section className="exhibition-table" aria-label="Exhibitions">
       <div className="table-head"><span>#</span><span>Exhibition</span><span>Industry</span><span>Location</span><span>Date</span><span>Status</span><span>Actions</span></div>
-      {result.items.length ? result.items.map((item, index) => { const status = getEventStatus(item.startDate, item.endDate); return <article className="exhibition-row" key={item.id}>
+      {result.items.length ? result.items.map((item, index) => { const status = getEventStatus(item.startDate, item.endDate, new Date(), item.timezone); return <article className="exhibition-row" key={item.id}>
         <span className="row-number">{String((result.page - 1) * result.pageSize + index + 1).padStart(2, "0")}</span>
         <div className="event-cell"><Link href={`/exhibitions/${item.slug}`}>{item.name}</Link><p>{item.tagline}</p><div className="mini-tags">{item.topics.slice(0, 3).map((topic) => <button key={topic} onClick={() => update({ topic })}>{topic}</button>)}{item.topics.length > 3 && <span>+{item.topics.length - 3}</span>}</div></div>
         <div className="info-cell"><Building2 /><span><b>{item.industry}</b><small>{item.topics[1] ?? "Exhibition"}</small></span></div>
         <div className="info-cell"><MapPin /><span><b>{item.city}{item.city && item.country ? ", " : ""}{item.country}</b><small>{item.venue || "Venue TBA"}</small></span></div>
-        <div className="info-cell date-cell"><CalendarDays /><span><b>{formatEventDate(item.startDate, item.endDate)}</b></span></div>
+        <div className="info-cell date-cell"><CalendarDays /><span><b>{formatEventDate(item.startDate, item.endDate)}</b><small dir="rtl" lang="fa">{formatPersianEventDate(item.startDate, item.endDate, false)}</small></span></div>
         <div className={`status-cell ${status.state}`}><i /><span><b>{status.label}</b><small>{status.detail}</small></span></div>
         <div className="row-actions"><button onClick={() => toggleSave(item)} className={item.saved ? "saved" : ""} aria-label={item.saved ? "Remove from saved" : "Save exhibition"}>{item.saved ? <Bookmark /> : <Heart />}</button><Link className="button row-view" href={`/exhibitions/${item.slug}`}>View <ChevronRight /></Link><div className="row-menu-wrap"><button aria-label="More actions" onClick={() => setMenu(menu === item.id ? null : item.id)}><EllipsisVertical /></button>{menu === item.id && <div className="row-menu"><Link href={`/exhibitions/${item.slug}`}>View Exhibition</Link><button onClick={() => { setEditing(item); setMenu(null); }}>Edit Exhibition</button><button className="danger" onClick={() => { setDeleting(item); setMenu(null); }}>Delete Exhibition</button></div>}</div></div>
       </article>; }) : <div className="empty-state"><Filter /><h3>No exhibitions found</h3><p>Try broadening your search or clearing the active filters.</p><button className="button outline" onClick={() => router.replace("/exhibitions")}>Clear filters</button></div>}

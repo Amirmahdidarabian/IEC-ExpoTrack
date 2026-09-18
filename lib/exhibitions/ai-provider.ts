@@ -1,7 +1,9 @@
 import { seedExhibitions } from "./seed-data";
+import { normalizeDateOnly } from "./dates";
+import { aiExhibitionSchema } from "./schema";
 import type { ExhibitionInput } from "./types";
 
-export type AiSearchResult = { matches: ExhibitionInput[]; provider: "openai" | "demo" };
+export type AiSearchResult = { matches: Partial<ExhibitionInput>[]; provider: "openai" | "demo" };
 
 function toInput(match: (typeof seedExhibitions)[number]): ExhibitionInput {
   return {
@@ -26,8 +28,13 @@ async function searchWithOpenAI(query: string): Promise<AiSearchResult | null> {
   if (!response.ok) throw new Error("Research provider unavailable");
   const payload = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
   const text = payload.output_text ?? payload.output?.flatMap((entry) => entry.content ?? []).map((entry) => entry.text ?? "").join("") ?? "";
-  const parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, "")) as { matches?: ExhibitionInput[] };
-  return { matches: parsed.matches ?? [], provider: "openai" };
+  const parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, "")) as { matches?: unknown[] };
+  const matches = (parsed.matches ?? []).flatMap((candidate) => {
+    const result = aiExhibitionSchema.safeParse(candidate);
+    if (!result.success) return [];
+    return [{ ...result.data, startDate: result.data.startDate ? normalizeDateOnly(result.data.startDate) ?? undefined : undefined, endDate: result.data.endDate ? normalizeDateOnly(result.data.endDate) : result.data.endDate }];
+  });
+  return { matches, provider: "openai" };
 }
 
 export async function searchExhibitionsWithAI(query: string): Promise<AiSearchResult> {
