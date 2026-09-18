@@ -7,7 +7,7 @@ import type { Exhibition, TaxonomyItem } from "./types";
 export type TaxonomyKind = "categories" | "topics";
 
 type DemoTaxonomies = Record<TaxonomyKind, TaxonomyItem[]>;
-const globalStore = globalThis as unknown as { iecDemoTaxonomies?: DemoTaxonomies; iecDemoExhibitions?: Exhibition[] };
+const globalStore = globalThis as unknown as { iecDemoTaxonomies?: DemoTaxonomies; iecDemoExhibitions?: Exhibition[]; iecTaxonomyDatabaseRetryAt?: number };
 
 function unique(items: TaxonomyItem[]) {
   return [...new Map(items.map((item) => [item.id, item])).values()];
@@ -61,7 +61,7 @@ function demoUsage(kind: TaxonomyKind, id: string) {
 }
 
 export async function listTaxonomies(kind: TaxonomyKind): Promise<TaxonomyItem[]> {
-  if (useDatabase) {
+  if (useDatabase && Date.now() >= (globalStore.iecTaxonomyDatabaseRetryAt ?? 0)) {
     try {
       const records = kind === "categories"
         ? await prisma.industryCategory.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { exhibitions: true } } } })
@@ -69,6 +69,7 @@ export async function listTaxonomies(kind: TaxonomyKind): Promise<TaxonomyItem[]
       return records.map(mapDatabaseItem);
     } catch (error) {
       if (!canUseDemoFallback(error)) throw error;
+      globalStore.iecTaxonomyDatabaseRetryAt = Date.now() + 10_000;
     }
   }
   return globalStore.iecDemoTaxonomies![kind]
@@ -80,7 +81,7 @@ export async function createTaxonomy(kind: TaxonomyKind, rawName: string) {
   const name = displayName(rawName);
   const normalizedName = normalizeTaxonomyName(name);
   if (!normalizedName) throw new Error("Name is required.");
-  if (useDatabase) {
+  if (useDatabase && Date.now() >= (globalStore.iecTaxonomyDatabaseRetryAt ?? 0)) {
     try {
       const data = { name, normalizedName, slug: slugify(name) };
       const record = kind === "categories" ? await prisma.industryCategory.create({ data }) : await prisma.topic.create({ data });
@@ -88,6 +89,7 @@ export async function createTaxonomy(kind: TaxonomyKind, rawName: string) {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new DuplicateTaxonomyError();
       if (!canUseDemoFallback(error)) throw error;
+      globalStore.iecTaxonomyDatabaseRetryAt = Date.now() + 10_000;
     }
   }
   const items = globalStore.iecDemoTaxonomies![kind];
@@ -101,7 +103,7 @@ export async function renameTaxonomy(kind: TaxonomyKind, id: string, rawName: st
   const name = displayName(rawName);
   const normalizedName = normalizeTaxonomyName(name);
   if (!normalizedName) throw new Error("Name is required.");
-  if (useDatabase) {
+  if (useDatabase && Date.now() >= (globalStore.iecTaxonomyDatabaseRetryAt ?? 0)) {
     try {
       const record = kind === "categories"
         ? await prisma.industryCategory.update({ where: { id }, data: { name, normalizedName } })
@@ -110,6 +112,7 @@ export async function renameTaxonomy(kind: TaxonomyKind, id: string, rawName: st
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new DuplicateTaxonomyError();
       if (!canUseDemoFallback(error)) throw error;
+      globalStore.iecTaxonomyDatabaseRetryAt = Date.now() + 10_000;
     }
   }
   const items = globalStore.iecDemoTaxonomies![kind];
@@ -130,7 +133,7 @@ export async function renameTaxonomy(kind: TaxonomyKind, id: string, rawName: st
 }
 
 export async function deleteTaxonomy(kind: TaxonomyKind, id: string) {
-  if (useDatabase) {
+  if (useDatabase && Date.now() >= (globalStore.iecTaxonomyDatabaseRetryAt ?? 0)) {
     try {
       const usageCount = kind === "categories" ? await prisma.exhibitionCategory.count({ where: { categoryId: id } }) : await prisma.exhibitionTopic.count({ where: { topicId: id } });
       if (usageCount) throw new TaxonomyInUseError(usageCount);
@@ -139,6 +142,7 @@ export async function deleteTaxonomy(kind: TaxonomyKind, id: string) {
       return;
     } catch (error) {
       if (error instanceof TaxonomyInUseError || !canUseDemoFallback(error)) throw error;
+      globalStore.iecTaxonomyDatabaseRetryAt = Date.now() + 10_000;
     }
   }
   const usageCount = demoUsage(kind, id);
@@ -151,7 +155,7 @@ export async function deleteTaxonomy(kind: TaxonomyKind, id: string) {
 export async function resolveTaxonomySelections(categoryIds: string[], topicIds: string[]) {
   const uniqueCategoryIds = [...new Set(categoryIds)];
   const uniqueTopicIds = [...new Set(topicIds)];
-  if (useDatabase) {
+  if (useDatabase && Date.now() >= (globalStore.iecTaxonomyDatabaseRetryAt ?? 0)) {
     try {
       const [categories, topics] = await Promise.all([
         prisma.industryCategory.findMany({ where: { id: { in: uniqueCategoryIds } } }),
@@ -162,6 +166,7 @@ export async function resolveTaxonomySelections(categoryIds: string[], topicIds:
       return { categories: categories.map(mapDatabaseItem), topics: topics.map(mapDatabaseItem) };
     } catch (error) {
       if (!canUseDemoFallback(error)) throw error;
+      globalStore.iecTaxonomyDatabaseRetryAt = Date.now() + 10_000;
     }
   }
   const categories = globalStore.iecDemoTaxonomies!.categories.filter((item) => uniqueCategoryIds.includes(item.id));

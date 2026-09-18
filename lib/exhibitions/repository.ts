@@ -9,7 +9,7 @@ import { resolveTaxonomySelections } from "./taxonomy";
 import { validateLocationSelection } from "@/lib/locations";
 import type { Exhibition, ExhibitionFilters, ExhibitionInput, ExhibitionListResult } from "./types";
 
-const globalStore = globalThis as unknown as { iecDemoExhibitions?: Exhibition[] };
+const globalStore = globalThis as unknown as { iecDemoExhibitions?: Exhibition[]; iecDatabaseRetryAt?: number };
 if (!globalStore.iecDemoExhibitions) globalStore.iecDemoExhibitions = structuredClone(seedExhibitions);
 
 const useDatabase = Boolean(process.env.DATABASE_URL);
@@ -22,6 +22,7 @@ function canUseDemoFallback(error: unknown) {
 }
 
 function reportDemoFallback(error: unknown) {
+  globalStore.iecDatabaseRetryAt = Date.now() + 10_000;
   const message = error instanceof Error ? error.message.split("\n").find((line) => line.trim()) : "Database unavailable";
   console.warn(`[IEC ExpoTrack] ${message}. Using the non-persistent demo catalog until PostgreSQL is available.`);
 }
@@ -123,7 +124,7 @@ export function sortItems(items: Exhibition[], sort = "nearest", now: string | D
 export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<ExhibitionListResult> {
   const pageSize = Math.min(50, Math.max(1, filters.pageSize ?? 10));
   const page = Math.max(1, filters.page ?? 1);
-  if (useDatabase) {
+  if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
     try {
       const offset = (page - 1) * pageSize;
       const include = recordInclude;
@@ -171,7 +172,7 @@ export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<
 }
 
 export async function getExhibition(identifier: string) {
-  if (useDatabase) {
+  if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
     try {
       const record = await prisma.exhibition.findFirst({ where: { OR: [{ id: identifier }, { slug: identifier }] }, include: recordInclude });
       return record ? mapRecord(record as unknown as Record<string, unknown>) : null;
@@ -220,7 +221,7 @@ export class DuplicateExhibitionError extends Error {
 export async function findDuplicateExhibitions(raw: ExhibitionInput, excludeId?: string) {
   const input = await validatedInput(raw);
   let candidates: Exhibition[];
-  if (useDatabase) {
+  if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
     try {
       const start = new Date(input.startDate); const from = new Date(start); const to = new Date(start);
       from.setUTCFullYear(start.getUTCFullYear() - 1); to.setUTCFullYear(start.getUTCFullYear() + 1);
@@ -243,14 +244,19 @@ export async function createExhibition(raw: ExhibitionInput, options: { allowDup
   let slug = slugify(input.name);
   if (await getExhibition(slug)) slug = `${slug}-${slugify(input.city || input.country)}`;
   if (await getExhibition(slug)) slug = `${slug}-${Date.now().toString(36)}`;
-  if (useDatabase) {
-    const record = await prisma.exhibition.create({ data: {
-      ...scalarFields(input), slug, startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null,
-      sources: { create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) },
-      categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) },
-      topicLinks: { create: input.topicIds.map((topicId) => ({ topicId })) },
-    }, include: recordInclude });
-    return mapRecord(record as unknown as Record<string, unknown>);
+  if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
+    try {
+      const record = await prisma.exhibition.create({ data: {
+        ...scalarFields(input), slug, startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null,
+        sources: { create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) },
+        categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) },
+        topicLinks: { create: input.topicIds.map((topicId) => ({ topicId })) },
+      }, include: recordInclude });
+      return mapRecord(record as unknown as Record<string, unknown>);
+    } catch (error) {
+      if (!canUseDemoFallback(error)) throw error;
+      reportDemoFallback(error);
+    }
   }
   const now = new Date().toISOString();
   const item: Exhibition = { ...scalarFields(input), categories: input.categories, topicItems: input.topicItems, id: crypto.randomUUID(), slug, saved: false, createdAt: now, updatedAt: now, sources: input.sources.map((source) => ({ ...source, id: crypto.randomUUID() })) };
@@ -264,14 +270,19 @@ export async function updateExhibition(id: string, raw: ExhibitionInput, options
     const duplicates = await findDuplicateExhibitions(input, id);
     if (duplicates.length) throw new DuplicateExhibitionError(duplicates);
   }
-  if (useDatabase) {
-    const record = await prisma.exhibition.update({ where: { id }, data: {
-      ...scalarFields(input), startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null,
-      sources: { deleteMany: {}, create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) },
-      categories: { deleteMany: {}, create: input.categoryIds.map((categoryId) => ({ categoryId })) },
-      topicLinks: { deleteMany: {}, create: input.topicIds.map((topicId) => ({ topicId })) },
-    }, include: recordInclude });
-    return mapRecord(record as unknown as Record<string, unknown>);
+  if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
+    try {
+      const record = await prisma.exhibition.update({ where: { id }, data: {
+        ...scalarFields(input), startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null,
+        sources: { deleteMany: {}, create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) },
+        categories: { deleteMany: {}, create: input.categoryIds.map((categoryId) => ({ categoryId })) },
+        topicLinks: { deleteMany: {}, create: input.topicIds.map((topicId) => ({ topicId })) },
+      }, include: recordInclude });
+      return mapRecord(record as unknown as Record<string, unknown>);
+    } catch (error) {
+      if (!canUseDemoFallback(error)) throw error;
+      reportDemoFallback(error);
+    }
   }
   const index = globalStore.iecDemoExhibitions!.findIndex((item) => item.id === id);
   if (index < 0) throw new Error("Exhibition not found");
@@ -282,14 +293,22 @@ export async function updateExhibition(id: string, raw: ExhibitionInput, options
 }
 
 export async function deleteExhibition(id: string) {
-  if (useDatabase) await prisma.exhibition.delete({ where: { id } });
-  else globalStore.iecDemoExhibitions = globalStore.iecDemoExhibitions!.filter((item) => item.id !== id);
+  if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
+    try { await prisma.exhibition.delete({ where: { id } }); return; }
+    catch (error) { if (!canUseDemoFallback(error)) throw error; reportDemoFallback(error); }
+  }
+  globalStore.iecDemoExhibitions = globalStore.iecDemoExhibitions!.filter((item) => item.id !== id);
 }
 
 export async function toggleSaved(id: string) {
-  if (useDatabase) {
-    const current = await prisma.exhibition.findUniqueOrThrow({ where: { id } });
-    return prisma.exhibition.update({ where: { id }, data: { saved: !current.saved } }).then((record: { saved: boolean }) => Boolean(record.saved));
+  if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
+    try {
+      const current = await prisma.exhibition.findUniqueOrThrow({ where: { id } });
+      return prisma.exhibition.update({ where: { id }, data: { saved: !current.saved } }).then((record: { saved: boolean }) => Boolean(record.saved));
+    } catch (error) {
+      if (!canUseDemoFallback(error)) throw error;
+      reportDemoFallback(error);
+    }
   }
   const item = globalStore.iecDemoExhibitions!.find((entry) => entry.id === id);
   if (!item) throw new Error("Exhibition not found");
