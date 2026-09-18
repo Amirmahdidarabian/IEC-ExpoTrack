@@ -34,8 +34,8 @@ export function DateRangeDialog({ startDate, endDate, onApply, onClose }: { star
   return <Modal onClose={onClose} label="Select date range" className="date-range-modal">
     <header className="date-dialog-heading"><span><CalendarDays /></span><div><h2>Select Date Range</h2><p>Choose the start and end date for the exhibition.</p></div></header>
     <div className="calendar-mode" role="tablist" aria-label="Calendar system">
-      <button role="tab" aria-selected={mode === "gregorian"} className={mode === "gregorian" ? "active" : ""} onClick={() => setMode("gregorian")}><CalendarDays /> Gregorian <b>(میلادی)</b></button>
-      <button role="tab" aria-selected={mode === "persian"} className={mode === "persian" ? "active" : ""} onClick={() => setMode("persian")}><CalendarDays /> Persian <b dir="rtl">(شمسی)</b></button>
+      <button role="tab" aria-selected={mode === "gregorian"} className={mode === "gregorian" ? "active" : ""} onClick={() => setMode("gregorian")}><CalendarDays /> Gregorian <b dir="rtl" lang="fa">(میلادی)</b></button>
+      <button role="tab" aria-selected={mode === "persian"} className={mode === "persian" ? "active" : ""} onClick={() => setMode("persian")}><CalendarDays /> Persian <b dir="rtl" lang="fa">(شمسی)</b></button>
     </div>
     <div className={`calendar-host ${mode === "persian" ? "rtl-calendar" : ""}`}>
       <Calendar

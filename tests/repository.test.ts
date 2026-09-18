@@ -3,7 +3,7 @@ import { listExhibitions, sortItems } from "@/lib/exhibitions/repository";
 import type { Exhibition } from "@/lib/exhibitions/types";
 
 function event(id: string, startDate: string, endDate: string | null = startDate): Exhibition {
-  return { id, slug: id, name: id, tagline: "", industry: "Energy", eventType: "Exhibition", country: "Germany", city: "", venue: "", address: "", startDate, endDate, timezone: "Europe/Berlin", organizer: "", website: "", description: "", aiReport: "", topics: [], saved: false, createdAt: startDate, updatedAt: startDate, sources: [] };
+  return { id, slug: id, name: id, tagline: "", industry: "Energy", eventType: "Exhibition", country: "Germany", countryCode: "DE", city: "", venue: "", address: "", startDate, endDate, timezone: "Europe/Berlin", organizer: "", website: "", description: "", aiReport: "", topics: [], categories: [], topicItems: [], saved: false, createdAt: startDate, updatedAt: startDate, sources: [] };
 }
 
 describe("exhibition queries", () => {

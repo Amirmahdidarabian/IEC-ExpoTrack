@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { exhibitionSchema } from "@/lib/exhibitions/schema";
 
-const valid = { name: "Future Energy 2027", country: "Germany", startDate: "2027-03-01T09:00:00Z", endDate: "2027-03-03T17:00:00Z", website: "https://example.com" };
+const valid = { name: "Future Energy 2027", country: "Germany", countryCode: "DE", categoryIds: ["energy"], topicIds: [], timezone: "Europe/Berlin", startDate: "2027-03-01T09:00:00Z", endDate: "2027-03-03T17:00:00Z", website: "https://example.com" };
 
 describe("exhibition validation", () => {
   it("accepts a safe exhibition payload", () => expect(exhibitionSchema.safeParse(valid).success).toBe(true));

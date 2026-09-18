@@ -13,7 +13,7 @@ import { Modal } from "./Modal";
 type AiState = "idle" | "loading" | "error" | "success";
 
 function withoutIds(initial: ExhibitionInput | Exhibition): ExhibitionInput {
-  return { name: initial.name, tagline: initial.tagline, industry: initial.industry, eventType: initial.eventType, country: initial.country, city: initial.city, venue: initial.venue, address: initial.address, startDate: initial.startDate, endDate: initial.endDate, timezone: initial.timezone, organizer: initial.organizer, website: initial.website, description: initial.description, aiReport: initial.aiReport, topics: [...initial.topics], sources: initial.sources?.map((source) => ({ label: source.label, url: source.url, lastChecked: source.lastChecked, priority: source.priority })) ?? [] };
+  return { name: initial.name, tagline: initial.tagline, industry: initial.industry, categoryIds: "categoryIds" in initial ? [...initial.categoryIds] : initial.categories.map((item) => item.id), topicIds: "topicIds" in initial ? [...initial.topicIds] : initial.topicItems.map((item) => item.id), eventType: initial.eventType, country: initial.country, countryCode: initial.countryCode, city: initial.city, venue: initial.venue, address: initial.address, startDate: initial.startDate, endDate: initial.endDate, timezone: initial.timezone, organizer: initial.organizer, website: initial.website, description: initial.description, aiReport: initial.aiReport, topics: [...initial.topics], sources: initial.sources?.map((source) => ({ label: source.label, url: source.url, lastChecked: source.lastChecked, priority: source.priority })) ?? [] };
 }
 
 function isEmpty(value: unknown) { return value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0); }
@@ -52,9 +52,10 @@ export function ReviewModal({ initial, onClose, mode = "review", onSaved }: { in
       const match = payload.matches?.[0] as Partial<ExhibitionInput> | undefined;
       if (!match) { setAiState("error"); setAiMessage("No trusted exhibition result was found. Continue entering the details manually."); return; }
       const next = { ...draft }; const filled = new Set<string>();
+      const protectedFields = new Set(["country", "countryCode", "city", "timezone", "industry", "topics", "categoryIds", "topicIds"]);
       for (const [key, incoming] of Object.entries(match)) {
         const field = key as keyof ExhibitionInput;
-        if (isEmpty(next[field]) && !isEmpty(incoming)) { (next as Record<string, unknown>)[key] = incoming; filled.add(key); }
+        if (!protectedFields.has(key) && isEmpty(next[field]) && !isEmpty(incoming)) { (next as Record<string, unknown>)[key] = incoming; filled.add(key); }
       }
       setDraft(next); setAiFilled(filled); setAiState("success"); setAiMessage(filled.size ? `${filled.size} empty fields were filled. Your existing values were preserved.` : "Your form already contains the available information; nothing was overwritten.");
     } catch (caught) { setAiState("error"); setAiMessage(caught instanceof Error ? caught.message : "AI research failed. Your form values are unchanged."); }

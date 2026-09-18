@@ -1,12 +1,16 @@
 # IEC ExpoTrack
 
-Production-oriented exhibition intelligence MVP for the International Energy Club. It reproduces the supplied dark IEC interface across AI discovery, the exhibitions database, review/edit dialogs, saved events and exhibition intelligence details.
+Production-oriented exhibition management for the International Energy Club, with a shared Add/Edit workflow, normalized classifications and deterministic global location data.
 
 ## What is included
 
 - AI exhibition search with loading, validation, no-result, error and multi-match states
 - Large landscape review modal with strong backdrop blur, inline editing and confirmation
 - Manual add, update, duplicate protection and confirmed deletion
+- Searchable, keyboard-accessible category/topic multi-selects with in-place CRUD and usage-safe deletion
+- Searchable ISO country and country-aware city selection powered server-side by `@countrystatecity/countries`
+- Country-derived IANA timezone selection (automatic for one-zone countries, required choice for multi-zone countries)
+- Gregorian/Persian date-range selection with shared ISO storage and full Persian month names
 - Search, country/industry/year/status/topic filters, five sort modes and URL-backed pagination
 - Shared date utility for upcoming countdowns, `LIVE NOW`, ended state and inclusive duration
 - PostgreSQL/Prisma schema, migration and realistic 10-event seed
@@ -42,6 +46,7 @@ Open `http://localhost:3000`. On macOS/Linux, use `cp .env.example .env` instead
 Local PostgreSQL is exposed only on `127.0.0.1:55432`, avoiding the default host port `5432` and leaving other local services untouched. PostgreSQL continues to use port `5432` only inside its private Docker network.
 
 The AI provider is isolated in `lib/exhibitions/ai-provider.ts`. Without a key it searches the included verified demo catalog and all review/add flows remain functional.
+AI intentionally does not set country, city, category, topic or timezone; those values must come from the validated application datasets.
 
 ## Database workflow
 
@@ -60,6 +65,8 @@ npm run db:deploy
 ```
 
 Do not use `prisma db push` for production.
+
+Migration `202609180002_taxonomy_and_location` preserves the legacy `industry` and `topics` values, backfills normalized category/topic entities and join tables, and adds an optional ISO `countryCode` for legacy rows. New and edited records require validated taxonomy IDs, country code, city and country-derived IANA timezone data. No reset or destructive migration is required.
 
 ## Quality and production build
 
@@ -115,16 +122,21 @@ Add HTTPS with Certbot/Let’s Encrypt after DNS is pointed to the VPS. No opera
 
 ## Routes
 
-- `/` — public AI research search and add flow
+- `/` — public landing page and Add Exhibition flow
 - `/exhibitions` — searchable exhibition database
 - `/exhibitions/[slug]` — exhibition intelligence detail
 - `/saved` — saved shortlist
-- `/reports`, `/resources`, `/about` — supporting product pages
 - `/api/exhibitions/*` — validated CRUD, save and AI research endpoints
+- `/api/taxonomies/*` — category/topic list and management endpoints
+- `/api/locations/*` — server-only country, city and timezone lookups
 
 ## Authentication and intentionally deferred scope
 
-Authentication and multi-user saved lists are intentionally deferred because no identity system existed in the empty starting workspace. The current MVP is a single trusted workspace; deploy it behind an access layer if exposed publicly. Notifications, paid map embeds, full report versioning and a CMS are also outside the focused MVP. All visible product controls in the implemented flows are functional.
+Authentication and multi-user saved lists are intentionally deferred because no identity system exists in the application. The current product is a single trusted workspace; deploy it behind an access layer if exposed publicly. Paid map embeds, report versioning and a CMS are also outside the focused scope.
+
+## Persian font asset
+
+Persian exhibition dates use the `B Nazanin` font declaration and language-aware `lang="fa"` styling. A redistributable font was not supplied, so add your licensed WOFF2 file at `public/fonts/BNazanin.woff2`. Until then, the UI falls back to Tahoma. See `public/fonts/README.md`.
 
 ## Visual asset
 

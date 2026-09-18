@@ -6,7 +6,7 @@ import { formatEventDate, formatPersianEventDate } from "@/lib/exhibitions/dates
 import type { Exhibition, ExhibitionInput } from "@/lib/exhibitions/types";
 import { Modal } from "./Modal";
 
-const fields: Array<[keyof ExhibitionInput, string]> = [["name", "Name"], ["industry", "Industry"], ["country", "Country"], ["city", "City"], ["venue", "Venue"], ["organizer", "Organizer"], ["website", "Website"]];
+const fields = [["name", "Name"], ["industry", "Industry"], ["country", "Country"], ["city", "City"], ["venue", "Venue"], ["organizer", "Organizer"], ["website", "Website"]] as const;
 
 function ComparisonCard({ title, value, other }: { title: string; value: Exhibition | ExhibitionInput; other: Exhibition | ExhibitionInput }) {
   return <article className="duplicate-card"><h3>{title}</h3><div className="duplicate-fields">{fields.map(([key, label]) => { const current = String(value[key] ?? "—"); const different = current.trim().toLowerCase() !== String(other[key] ?? "").trim().toLowerCase(); return <div key={key} className={different ? "different" : ""}><small>{label}</small><b>{current || "—"}</b></div>; })}<div className={value.startDate !== other.startDate || value.endDate !== other.endDate ? "different" : ""}><small>Dates</small><b>{formatEventDate(value.startDate, value.endDate)}</b><span dir="rtl" lang="fa">{formatPersianEventDate(value.startDate, value.endDate)}</span></div></div></article>;
