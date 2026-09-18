@@ -5,6 +5,8 @@ import { getEventStatus } from "./dates";
 import { normalizeDateOnly } from "./dates";
 import { findLikelyDuplicates } from "./duplicate";
 import { seedExhibitions } from "./seed-data";
+import { resolveTaxonomySelections } from "./taxonomy";
+import { validateLocationSelection } from "@/lib/locations";
 import type { Exhibition, ExhibitionFilters, ExhibitionInput, ExhibitionListResult } from "./types";
 
 const globalStore = globalThis as unknown as { iecDemoExhibitions?: Exhibition[] };
@@ -28,14 +30,26 @@ function slugify(name: string) {
   return name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
+const recordInclude = {
+  sources: { orderBy: { priority: "asc" as const } },
+  categories: { include: { category: true } },
+  topicLinks: { include: { topic: true } },
+};
+
 function mapRecord(record: Record<string, unknown>): Exhibition {
+  const categoryLinks = Array.isArray(record.categories) ? record.categories as Array<{ category?: Record<string, unknown> }> : [];
+  const topicLinks = Array.isArray(record.topicLinks) ? record.topicLinks as Array<{ topic?: Record<string, unknown> }> : [];
+  const categories = categoryLinks.flatMap((link) => link.category ? [{ id: String(link.category.id), name: String(link.category.name), slug: String(link.category.slug) }] : []);
+  const topicItems = topicLinks.flatMap((link) => link.topic ? [{ id: String(link.topic.id), name: String(link.topic.name), slug: String(link.topic.slug) }] : []);
+  const legacyTopics = Array.isArray(record.topics) ? record.topics.map(String) : [];
   return {
     id: String(record.id), slug: String(record.slug), name: String(record.name), tagline: String(record.tagline ?? ""),
-    industry: String(record.industry ?? "Energy"), eventType: String(record.eventType ?? "International Exhibition"),
-    country: String(record.country), city: String(record.city ?? ""), venue: String(record.venue ?? ""), address: String(record.address ?? ""),
+    industry: categories.length ? categories.map((item) => item.name).join(", ") : String(record.industry ?? "Energy"), eventType: String(record.eventType ?? "International Exhibition"),
+    country: String(record.country), countryCode: String(record.countryCode ?? ""), city: String(record.city ?? ""), venue: String(record.venue ?? ""), address: String(record.address ?? ""),
     startDate: new Date(record.startDate as string | Date).toISOString(), endDate: record.endDate ? new Date(record.endDate as string | Date).toISOString() : null,
     timezone: String(record.timezone ?? "UTC"), organizer: String(record.organizer ?? ""), website: String(record.website ?? ""),
-    description: String(record.description ?? ""), aiReport: String(record.aiReport ?? ""), topics: Array.isArray(record.topics) ? record.topics.map(String) : [],
+    description: String(record.description ?? ""), aiReport: String(record.aiReport ?? ""), topics: topicItems.length ? topicItems.map((item) => item.name) : legacyTopics,
+    categories, topicItems,
     saved: Boolean(record.saved), createdAt: new Date(record.createdAt as string | Date).toISOString(), updatedAt: new Date(record.updatedAt as string | Date).toISOString(),
     sources: Array.isArray(record.sources) ? (record.sources as Record<string, unknown>[]).map((source) => ({
       id: String(source.id), label: String(source.label), url: String(source.url), priority: Number(source.priority), lastChecked: new Date(source.lastChecked as string | Date).toISOString(),
@@ -60,10 +74,14 @@ function filterDemo(items: Exhibition[], filters: ExhibitionFilters) {
 function databaseWhere(filters: ExhibitionFilters, forcedStatus?: "upcoming" | "ongoing" | "past"): Prisma.ExhibitionWhereInput {
   const conditions: Prisma.ExhibitionWhereInput[] = [];
   const q = filters.q?.trim();
-  if (q) conditions.push({ OR: ["name", "industry", "country", "city", "venue", "organizer"].map((field) => ({ [field]: { contains: q, mode: "insensitive" } })) as Prisma.ExhibitionWhereInput[] });
+  if (q) conditions.push({ OR: [
+    ...["name", "industry", "country", "city", "venue", "organizer"].map((field) => ({ [field]: { contains: q, mode: "insensitive" } })),
+    { categories: { some: { category: { name: { contains: q, mode: "insensitive" } } } } },
+    { topicLinks: { some: { topic: { name: { contains: q, mode: "insensitive" } } } } },
+  ] as Prisma.ExhibitionWhereInput[] });
   if (filters.country) conditions.push({ country: filters.country });
-  if (filters.industry) conditions.push({ industry: filters.industry });
-  if (filters.topic) conditions.push({ topics: { array_contains: [filters.topic] } });
+  if (filters.industry) conditions.push({ OR: [{ industry: filters.industry }, { categories: { some: { category: { name: filters.industry } } } }] });
+  if (filters.topic) conditions.push({ OR: [{ topics: { array_contains: [filters.topic] } }, { topicLinks: { some: { topic: { name: filters.topic } } } }] });
   if (filters.year) {
     const year = Number(filters.year);
     if (Number.isInteger(year)) conditions.push({ startDate: { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) } });
@@ -108,7 +126,7 @@ export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<
   if (useDatabase) {
     try {
       const offset = (page - 1) * pageSize;
-      const include = { sources: { orderBy: { priority: "asc" as const } } };
+      const include = recordInclude;
       let records: unknown[] = []; let total = 0;
       if ((filters.sort ?? "nearest") === "nearest" && (filters.status ?? "all") === "all") {
         const groups = ["ongoing", "upcoming", "past"] as const;
@@ -125,11 +143,12 @@ export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<
         const status = filters.status && filters.status !== "all" ? filters.status : undefined;
         records = await prisma.exhibition.findMany({ where, orderBy: databaseOrder(filters.sort, status), skip: offset, take: pageSize, include });
       }
-      const optionRows = await prisma.exhibition.findMany({ select: { country: true, industry: true, startDate: true } });
+      const optionRows = await prisma.exhibition.findMany({ select: { country: true, industry: true, startDate: true, categories: { select: { category: { select: { name: true } } } } } });
+      const industryOptions = [...new Set(optionRows.flatMap((item) => item.categories.length ? item.categories.map((link) => link.category.name) : [item.industry]).filter(Boolean))].sort();
       return {
         items: records.map((record) => mapRecord(record as Record<string, unknown>)), total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)),
-        stats: { total: optionRows.length, countries: new Set(optionRows.map((item) => item.country).filter(Boolean)).size, industries: new Set(optionRows.map((item) => item.industry).filter(Boolean)).size },
-        options: { countries: [...new Set(optionRows.map((item) => item.country).filter(Boolean))].sort(), industries: [...new Set(optionRows.map((item) => item.industry).filter(Boolean))].sort(), years: [...new Set(optionRows.map((item) => String(item.startDate.getUTCFullYear())))].sort() },
+        stats: { total: optionRows.length, countries: new Set(optionRows.map((item) => item.country).filter(Boolean)).size, industries: industryOptions.length },
+        options: { countries: [...new Set(optionRows.map((item) => item.country).filter(Boolean))].sort(), industries: industryOptions, years: [...new Set(optionRows.map((item) => String(item.startDate.getUTCFullYear())))].sort() },
       };
     } catch (error) {
       if (!canUseDemoFallback(error)) throw error;
@@ -154,7 +173,7 @@ export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<
 export async function getExhibition(identifier: string) {
   if (useDatabase) {
     try {
-      const record = await prisma.exhibition.findFirst({ where: { OR: [{ id: identifier }, { slug: identifier }] }, include: { sources: { orderBy: { priority: "asc" } } } });
+      const record = await prisma.exhibition.findFirst({ where: { OR: [{ id: identifier }, { slug: identifier }] }, include: recordInclude });
       return record ? mapRecord(record as unknown as Record<string, unknown>) : null;
     } catch (error) {
       if (!canUseDemoFallback(error)) throw error;
@@ -164,8 +183,33 @@ export async function getExhibition(identifier: string) {
   return globalStore.iecDemoExhibitions!.find((item) => item.id === identifier || item.slug === identifier) ?? null;
 }
 
-function validatedInput(raw: ExhibitionInput) {
-  return exhibitionSchema.parse({ ...raw, startDate: normalizeDateOnly(raw.startDate), endDate: raw.endDate ? normalizeDateOnly(raw.endDate) : null });
+async function validatedInput(raw: ExhibitionInput) {
+  const input = exhibitionSchema.parse({ ...raw, startDate: normalizeDateOnly(raw.startDate), endDate: raw.endDate ? normalizeDateOnly(raw.endDate) : null });
+  const [country, selections] = await Promise.all([
+    validateLocationSelection(input),
+    resolveTaxonomySelections(input.categoryIds, input.topicIds),
+  ]);
+  return {
+    ...input,
+    country: country.name,
+    categoryIds: [...new Set(input.categoryIds)],
+    topicIds: [...new Set(input.topicIds)],
+    industry: selections.categories.map((item) => item.name).join(", "),
+    topics: selections.topics.map((item) => item.name),
+    categories: selections.categories,
+    topicItems: selections.topics,
+  };
+}
+
+type PreparedInput = Awaited<ReturnType<typeof validatedInput>>;
+
+function scalarFields(input: PreparedInput) {
+  return {
+    name: input.name, tagline: input.tagline, industry: input.industry, eventType: input.eventType,
+    country: input.country, countryCode: input.countryCode, city: input.city, venue: input.venue, address: input.address,
+    startDate: input.startDate, endDate: input.endDate, timezone: input.timezone, organizer: input.organizer,
+    website: input.website, description: input.description, aiReport: input.aiReport, topics: input.topics,
+  };
 }
 
 export class DuplicateExhibitionError extends Error {
@@ -174,13 +218,13 @@ export class DuplicateExhibitionError extends Error {
 }
 
 export async function findDuplicateExhibitions(raw: ExhibitionInput, excludeId?: string) {
-  const input = validatedInput(raw);
+  const input = await validatedInput(raw);
   let candidates: Exhibition[];
   if (useDatabase) {
     try {
       const start = new Date(input.startDate); const from = new Date(start); const to = new Date(start);
       from.setUTCFullYear(start.getUTCFullYear() - 1); to.setUTCFullYear(start.getUTCFullYear() + 1);
-      const records = await prisma.exhibition.findMany({ where: { id: excludeId ? { not: excludeId } : undefined, OR: [{ country: { equals: input.country, mode: "insensitive" } }, { startDate: { gte: from, lte: to } }] }, include: { sources: { orderBy: { priority: "asc" } } }, take: 50 });
+      const records = await prisma.exhibition.findMany({ where: { id: excludeId ? { not: excludeId } : undefined, OR: [{ country: { equals: input.country, mode: "insensitive" } }, { startDate: { gte: from, lte: to } }] }, include: recordInclude, take: 50 });
       candidates = records.map((record: unknown) => mapRecord(record as Record<string, unknown>));
     } catch (error) {
       if (!canUseDemoFallback(error)) throw error;
@@ -191,7 +235,7 @@ export async function findDuplicateExhibitions(raw: ExhibitionInput, excludeId?:
 }
 
 export async function createExhibition(raw: ExhibitionInput, options: { allowDuplicate?: boolean } = {}) {
-  const input = validatedInput(raw);
+  const input = await validatedInput(raw);
   if (!options.allowDuplicate) {
     const duplicates = await findDuplicateExhibitions(input);
     if (duplicates.length) throw new DuplicateExhibitionError(duplicates);
@@ -200,29 +244,39 @@ export async function createExhibition(raw: ExhibitionInput, options: { allowDup
   if (await getExhibition(slug)) slug = `${slug}-${slugify(input.city || input.country)}`;
   if (await getExhibition(slug)) slug = `${slug}-${Date.now().toString(36)}`;
   if (useDatabase) {
-    const record = await prisma.exhibition.create({ data: { ...input, slug, startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null, topics: input.topics, sources: { create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) } }, include: { sources: true } });
+    const record = await prisma.exhibition.create({ data: {
+      ...scalarFields(input), slug, startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null,
+      sources: { create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) },
+      categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) },
+      topicLinks: { create: input.topicIds.map((topicId) => ({ topicId })) },
+    }, include: recordInclude });
     return mapRecord(record as unknown as Record<string, unknown>);
   }
   const now = new Date().toISOString();
-  const item: Exhibition = { ...input, id: crypto.randomUUID(), slug, saved: false, createdAt: now, updatedAt: now, sources: input.sources.map((source) => ({ ...source, id: crypto.randomUUID() })) };
+  const item: Exhibition = { ...scalarFields(input), categories: input.categories, topicItems: input.topicItems, id: crypto.randomUUID(), slug, saved: false, createdAt: now, updatedAt: now, sources: input.sources.map((source) => ({ ...source, id: crypto.randomUUID() })) };
   globalStore.iecDemoExhibitions!.unshift(item);
   return item;
 }
 
 export async function updateExhibition(id: string, raw: ExhibitionInput, options: { skipDuplicateCheck?: boolean } = {}) {
-  const input = validatedInput(raw);
+  const input = await validatedInput(raw);
   if (!options.skipDuplicateCheck) {
     const duplicates = await findDuplicateExhibitions(input, id);
     if (duplicates.length) throw new DuplicateExhibitionError(duplicates);
   }
   if (useDatabase) {
-    const record = await prisma.exhibition.update({ where: { id }, data: { ...input, startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null, sources: { deleteMany: {}, create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) } }, include: { sources: true } });
+    const record = await prisma.exhibition.update({ where: { id }, data: {
+      ...scalarFields(input), startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null,
+      sources: { deleteMany: {}, create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) },
+      categories: { deleteMany: {}, create: input.categoryIds.map((categoryId) => ({ categoryId })) },
+      topicLinks: { deleteMany: {}, create: input.topicIds.map((topicId) => ({ topicId })) },
+    }, include: recordInclude });
     return mapRecord(record as unknown as Record<string, unknown>);
   }
   const index = globalStore.iecDemoExhibitions!.findIndex((item) => item.id === id);
   if (index < 0) throw new Error("Exhibition not found");
   const existing = globalStore.iecDemoExhibitions![index];
-  const updated: Exhibition = { ...existing, ...input, updatedAt: new Date().toISOString(), sources: input.sources.map((source, i) => ({ ...source, id: existing.sources[i]?.id ?? crypto.randomUUID() })) };
+  const updated: Exhibition = { ...existing, ...scalarFields(input), categories: input.categories, topicItems: input.topicItems, updatedAt: new Date().toISOString(), sources: input.sources.map((source, i) => ({ ...source, id: existing.sources[i]?.id ?? crypto.randomUUID() })) };
   globalStore.iecDemoExhibitions![index] = updated;
   return updated;
 }

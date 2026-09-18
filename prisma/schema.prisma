@@ -15,6 +15,7 @@ model Exhibition {
   industry    String   @default("Energy")
   eventType   String   @default("International Exhibition")
   country     String
+  countryCode String?
   city        String   @default("")
   venue       String   @default("")
   address     String   @default("")
@@ -30,10 +31,52 @@ model Exhibition {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   sources     Source[]
+  categories  ExhibitionCategory[]
+  topicLinks  ExhibitionTopic[]
 
   @@index([startDate])
   @@index([country])
   @@index([industry])
+}
+
+model IndustryCategory {
+  id             String               @id @default(cuid())
+  name           String
+  normalizedName String               @unique
+  slug           String               @unique
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  exhibitions    ExhibitionCategory[]
+}
+
+model Topic {
+  id             String            @id @default(cuid())
+  name           String
+  normalizedName String            @unique
+  slug           String            @unique
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  exhibitions    ExhibitionTopic[]
+}
+
+model ExhibitionCategory {
+  exhibitionId String
+  categoryId   String
+  exhibition   Exhibition       @relation(fields: [exhibitionId], references: [id], onDelete: Cascade)
+  category     IndustryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@id([exhibitionId, categoryId])
+  @@index([categoryId])
+}
+
+model ExhibitionTopic {
+  exhibitionId String
+  topicId      String
+  exhibition   Exhibition @relation(fields: [exhibitionId], references: [id], onDelete: Cascade)
+  topic        Topic      @relation(fields: [topicId], references: [id], onDelete: Restrict)
+
+  @@id([exhibitionId, topicId])
+  @@index([topicId])
 }
 
 model Source {

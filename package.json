@@ -17,6 +17,7 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@countrystatecity/countries": "^1.0.9",
     "@prisma/client": "^6.16.2",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.544.0",

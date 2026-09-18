@@ -6,6 +6,13 @@ export type Source = {
   priority: number;
 };
 
+export type TaxonomyItem = {
+  id: string;
+  name: string;
+  slug: string;
+  usageCount?: number;
+};
+
 export type Exhibition = {
   id: string;
   slug: string;
@@ -14,6 +21,7 @@ export type Exhibition = {
   industry: string;
   eventType: string;
   country: string;
+  countryCode: string;
   city: string;
   venue: string;
   address: string;
@@ -25,14 +33,18 @@ export type Exhibition = {
   description: string;
   aiReport: string;
   topics: string[];
+  categories: TaxonomyItem[];
+  topicItems: TaxonomyItem[];
   saved: boolean;
   createdAt: string;
   updatedAt: string;
   sources: Source[];
 };
 
-export type ExhibitionInput = Omit<Exhibition, "id" | "slug" | "saved" | "createdAt" | "updatedAt" | "sources"> & {
+export type ExhibitionInput = Omit<Exhibition, "id" | "slug" | "saved" | "createdAt" | "updatedAt" | "sources" | "categories" | "topicItems"> & {
   slug?: string;
+  categoryIds: string[];
+  topicIds: string[];
   sources?: Omit<Source, "id">[];
 };
 

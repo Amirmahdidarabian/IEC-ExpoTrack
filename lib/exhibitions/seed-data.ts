@@ -22,4 +22,16 @@ export const seedExhibitions: Exhibition[] = [
   { ...base, id: "bauma-2025", slug: "bauma-2025", name: "Bauma 2025", tagline: "The world’s leading trade fair for construction machinery", industry: "Construction", country: "Germany", city: "Munich", venue: "Trade Fair Center Messe München", address: "Am Messesee 2, Munich", startDate: "2025-04-07T09:00:00+02:00", endDate: "2025-04-13T18:00:00+02:00", timezone: "Europe/Berlin", organizer: "Messe München", website: "https://bauma.de", description: "The world’s largest trade fair for construction machinery and mining equipment.", aiReport: "Bauma is a benchmark event for heavy equipment, mining and construction innovation.", topics: ["Construction", "Mining", "Equipment"], sources: [src("b1", "bauma.de")] },
   { ...base, id: "solar-storage-live-2027", slug: "solar-storage-live-2027", name: "Solar & Storage Live 2027", tagline: "Powering the energy system of the future", industry: "Renewable Energy", country: "United Kingdom", city: "Birmingham", venue: "NEC Birmingham", address: "Pendigo Way, Birmingham", startDate: "2027-09-21T09:00:00+01:00", endDate: "2027-09-23T17:00:00+01:00", timezone: "Europe/London", organizer: "Terrapinn", website: "https://www.terrapinn.com/exhibition/solar-storage-live", description: "A major gathering for solar, storage and energy technology.", aiReport: "The event spans residential, commercial and utility-scale solar and storage solutions.", topics: ["Solar", "Battery Storage", "Renewable Energy"], sources: [src("s1", "www.terrapinn.com")] },
   { ...base, id: "africa-energy-forum-2027", slug: "africa-energy-forum-2027", name: "Africa Energy Forum 2027", tagline: "Investment and infrastructure for Africa’s energy future", industry: "Energy & Power", country: "South Africa", city: "Cape Town", venue: "CTICC", address: "Convention Square, Cape Town", startDate: "2027-06-15T09:00:00+02:00", endDate: "2027-06-18T17:00:00+02:00", timezone: "Africa/Johannesburg", organizer: "EnergyNet", website: "https://energy-news-network.com", description: "A high-level investment forum for Africa’s energy infrastructure.", aiReport: "AEF connects public and private stakeholders around bankable energy projects across Africa.", topics: ["Investment", "Infrastructure", "Renewable Energy"], sources: [src("af1", "energy-news-network.com")] }
-];
+].map((item) => {
+  const countryCodes: Record<string, string> = {
+    Belgium: "BE", Denmark: "DK", Germany: "DE", Singapore: "SG", "South Africa": "ZA",
+    "United Arab Emirates": "AE", "United Kingdom": "GB", "United States": "US",
+  };
+  const slug = (name: string) => name.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  return {
+    ...item,
+    countryCode: countryCodes[item.country] ?? "",
+    categories: [{ id: `demo-category-${slug(item.industry)}`, name: item.industry, slug: slug(item.industry) }],
+    topicItems: item.topics.map((name) => ({ id: `demo-topic-${slug(name)}`, name, slug: slug(name) })),
+  };
+});
