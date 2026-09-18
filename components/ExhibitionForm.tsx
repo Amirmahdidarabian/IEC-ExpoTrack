@@ -31,20 +31,19 @@ export function ExhibitionForm({ value, onChange, errors = {}, onSearchAi, aiSta
 
       <section className="form-section span-2"><header><MapPinned /><span><b>Location</b><small>Where the exhibition takes place</small></span></header><div className="form-section-grid"><LocationFields value={value} onChange={onChange} errors={errors} /></div></section>
 
-      <section className="form-section span-2"><header><CalendarDays /><span><b>Date & Time</b><small>When the exhibition takes place</small></span></header><div className="form-section-grid three-cols">
+      <section className="form-section date-time-section"><header><CalendarDays /><span><b>Date & Time</b><small>When the exhibition takes place</small></span></header><div className="form-section-grid three-cols">
         <DateButton label="Start date" value={value.startDate} required error={errors.startDate} onClick={() => setDateOpen(true)} />
         <DateButton label="End date" value={value.endDate} error={errors.endDate} onClick={() => setDateOpen(true)} />
         <TimezoneField value={value} onChange={onChange} error={errors.timezone} />
       </div></section>
 
-      <section className="form-section span-2"><header><Network /><span><b>Organization</b><small>Organizer and official website</small></span></header><div className="form-section-grid">
+      <section className="form-section organization-section"><header><Network /><span><b>Organization</b><small>Organizer and official website</small></span></header><div className="form-section-grid">
         <TextField value={value} onChange={onChange} errors={errors} aiFilled={aiFilled} name="organizer" label="Organizer" placeholder="e.g. DMG Events" />
         <TextField value={value} onChange={onChange} errors={errors} aiFilled={aiFilled} name="website" label="Official website" type="url" placeholder="https://www.example.com" />
       </div></section>
 
-      <section className="form-section span-2"><header><Tag /><span><b>Details</b><small>Descriptions and research notes</small></span></header><div className="form-section-grid">
-        <TextField value={value} onChange={onChange} errors={errors} aiFilled={aiFilled} name="tagline" label="Short description" placeholder="A brief overview of the exhibition…" />
-        <label className={`field ${aiFilled.has("description") ? "ai-filled" : ""}`}><span>Description{aiFilled.has("description") && <small>Filled by AI</small>}</span><textarea rows={3} maxLength={1000} value={value.description} onChange={(event) => onChange({ ...value, description: event.target.value })} placeholder="Enter a detailed description of the exhibition…" /><small className="char-count">{value.description.length}/1000</small></label>
+      <section className="form-section details-section span-2"><header><Tag /><span><b>Details</b><small>Descriptions and research notes</small></span></header><div className="form-section-grid">
+        <label className={`field span-2 ${aiFilled.has("description") ? "ai-filled" : ""}`}><span>Description{aiFilled.has("description") && <small>Filled by AI</small>}</span><textarea rows={4} maxLength={1000} value={value.description} onChange={(event) => onChange({ ...value, description: event.target.value })} placeholder="Enter a detailed description of the exhibition…" /><small className="char-count">{value.description.length}/1000</small></label>
         <label className="field span-2"><span>AI exhibition report</span><textarea rows={4} value={value.aiReport} onChange={(event) => onChange({ ...value, aiReport: event.target.value })} placeholder="Optional research notes and report" /></label>
       </div></section>
     </div>
