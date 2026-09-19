@@ -20,7 +20,7 @@ Production-oriented exhibition management for the International Energy Club, wit
 - Immutable audit history and manual pre/post-event email follow-up tracking
 - Production Docker, Compose, PM2 and Nginx guidance
 
-When `DATABASE_URL` is omitted, the app uses a non-persistent in-process demo catalog so the complete interface can be evaluated immediately. Set PostgreSQL in every persistent or production environment.
+When `DATABASE_URL` is omitted, repository-level exhibition reads can still use the non-persistent in-process demo catalog in development. The authenticated application requires PostgreSQL because users, sessions, permissions and audit history are intentionally persistent and server-controlled. Set PostgreSQL for application evaluation and every production environment.
 
 ## Local setup
 
