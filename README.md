@@ -15,6 +15,9 @@ Production-oriented exhibition management for the International Energy Club, wit
 - Shared date utility for upcoming countdowns, `LIVE NOW`, ended state and inclusive duration
 - PostgreSQL/Prisma schema, migration and realistic 10-event seed
 - Saved exhibitions, verified sources, map links and responsive detail pages
+- Username/password authentication with opaque database-backed sessions and forced first-login password changes
+- Granular permissions, user lifecycle management and final-administrator protection
+- Immutable audit history and manual pre/post-event email follow-up tracking
 - Production Docker, Compose, PM2 and Nginx guidance
 
 When `DATABASE_URL` is omitted, the app uses a non-persistent in-process demo catalog so the complete interface can be evaluated immediately. Set PostgreSQL in every persistent or production environment.
@@ -41,6 +44,8 @@ Open `http://localhost:3000`. On macOS/Linux, use `cp .env.example .env` instead
 | `EXHIBITION_DATA_MODE` | Optional | `auto` permits demo read fallback in development; `database` fails fast |
 | `OPENAI_API_KEY` | Optional | Enables live AI exhibition research; keep server-side |
 | `OPENAI_MODEL` | Optional | Responses API model, defaults to `gpt-5-mini` |
+| `INITIAL_ADMIN_USERNAME` | First deployment | Username used to idempotently create the initial administrator |
+| `INITIAL_ADMIN_PASSWORD` | First deployment | Temporary administrator password that must be changed at first login |
 | `NODE_ENV` | Production | Set to `production` for deployments |
 
 Local PostgreSQL is exposed only on `127.0.0.1:55432`, avoiding the default host port `5432` and leaving other local services untouched. PostgreSQL continues to use port `5432` only inside its private Docker network.
@@ -66,7 +71,9 @@ npm run db:deploy
 
 Do not use `prisma db push` for production.
 
-Migration `202609180002_taxonomy_and_location` preserves the legacy `industry` and `topics` values, backfills normalized category/topic entities and join tables, and adds an optional ISO `countryCode` for legacy rows. New and edited records require validated taxonomy IDs, country code, city and country-derived IANA timezone data. No reset or destructive migration is required.
+Migration `202609180002_taxonomy_and_location` preserves the legacy `industry` and `topics` values, backfills normalized category/topic entities and join tables, and adds an optional ISO `countryCode` for legacy rows. Migration `202609190001_auth_admin_audit_followup` adds users, sessions, relational permissions, immutable audit history and nullable exhibition attribution/follow-up relations without changing existing exhibition rows. No reset or destructive migration is required.
+
+The initial administrator is bootstrapped lazily and idempotently on the first login request. Existing accounts are never overwritten. Set both initial-admin variables before first sign-in, deploy the migration, and remove or rotate the bootstrap password in the environment after it has been changed. Sessions use random opaque tokens and PostgreSQL stores only their hashes, so no additional auth signing secret is required.
 
 ## Quality and production build
 
@@ -126,13 +133,20 @@ Add HTTPS with Certbot/Let’s Encrypt after DNS is pointed to the VPS. No opera
 - `/exhibitions` — searchable exhibition database
 - `/exhibitions/[slug]` — exhibition intelligence detail
 - `/saved` — saved shortlist
+- `/login` — username/password sign in
+- `/settings/account` — username and password settings
+- `/admin` — operational dashboard
+- `/admin/users` — user and permission management
+- `/admin/activity` — filterable, paginated audit history
 - `/api/exhibitions/*` — validated CRUD, save and AI research endpoints
 - `/api/taxonomies/*` — category/topic list and management endpoints
 - `/api/locations/*` — server-only country, city and timezone lookups
 
-## Authentication and intentionally deferred scope
+## Authentication and saved-list scope
 
-Authentication and multi-user saved lists are intentionally deferred because no identity system exists in the application. The current product is a single trusted workspace; deploy it behind an access layer if exposed publicly. Paid map embeds, report versioning and a CMS are also outside the focused scope.
+Internal pages and APIs require an active database-backed session. Administrators have all effective permissions; employee access comes from relational `UserPermission` rows and is rechecked by protected server mutations. Password changes, resets and account disabling revoke existing sessions. The existing Saved behavior remains a shared workspace shortlist; it was intentionally not converted into per-user saved records.
+
+Audit timestamps and the administration dashboard’s “Today” boundary use UTC consistently. The manual pre/post-event email fields are status tracking only; this application does not send or schedule email.
 
 ## Persian font asset
 

@@ -35,6 +35,10 @@ const recordInclude = {
   sources: { orderBy: { priority: "asc" as const } },
   categories: { include: { category: true } },
   topicLinks: { include: { topic: true } },
+  createdBy: { select: { id: true, username: true } },
+  updatedBy: { select: { id: true, username: true } },
+  preEventEmailSentBy: { select: { id: true, username: true } },
+  postEventEmailSentBy: { select: { id: true, username: true } },
 };
 
 function mapRecord(record: Record<string, unknown>): Exhibition {
@@ -51,7 +55,13 @@ function mapRecord(record: Record<string, unknown>): Exhibition {
     timezone: String(record.timezone ?? "UTC"), organizer: String(record.organizer ?? ""), website: String(record.website ?? ""),
     description: String(record.description ?? ""), aiReport: String(record.aiReport ?? ""), topics: topicItems.length ? topicItems.map((item) => item.name) : legacyTopics,
     categories, topicItems,
-    saved: Boolean(record.saved), createdAt: new Date(record.createdAt as string | Date).toISOString(), updatedAt: new Date(record.updatedAt as string | Date).toISOString(),
+    saved: Boolean(record.saved),
+    preEventEmailSent: Boolean(record.preEventEmailSent), preEventEmailSentAt: record.preEventEmailSentAt ? new Date(record.preEventEmailSentAt as string | Date).toISOString() : null,
+    postEventEmailSent: Boolean(record.postEventEmailSent), postEventEmailSentAt: record.postEventEmailSentAt ? new Date(record.postEventEmailSentAt as string | Date).toISOString() : null,
+    preEventEmailSentBy: record.preEventEmailSentBy as { id: string; username: string } | null ?? null,
+    postEventEmailSentBy: record.postEventEmailSentBy as { id: string; username: string } | null ?? null,
+    createdBy: record.createdBy as { id: string; username: string } | null ?? null, updatedBy: record.updatedBy as { id: string; username: string } | null ?? null,
+    createdAt: new Date(record.createdAt as string | Date).toISOString(), updatedAt: new Date(record.updatedAt as string | Date).toISOString(),
     sources: Array.isArray(record.sources) ? (record.sources as Record<string, unknown>[]).map((source) => ({
       id: String(source.id), label: String(source.label), url: String(source.url), priority: Number(source.priority), lastChecked: new Date(source.lastChecked as string | Date).toISOString(),
     })) : [],
@@ -235,7 +245,7 @@ export async function findDuplicateExhibitions(raw: ExhibitionInput, excludeId?:
   return findLikelyDuplicates(candidates, input);
 }
 
-export async function createExhibition(raw: ExhibitionInput, options: { allowDuplicate?: boolean } = {}) {
+export async function createExhibition(raw: ExhibitionInput, options: { allowDuplicate?: boolean; actorId?: string } = {}) {
   const input = await validatedInput(raw);
   if (!options.allowDuplicate) {
     const duplicates = await findDuplicateExhibitions(input);
@@ -246,12 +256,17 @@ export async function createExhibition(raw: ExhibitionInput, options: { allowDup
   if (await getExhibition(slug)) slug = `${slug}-${Date.now().toString(36)}`;
   if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
     try {
-      const record = await prisma.exhibition.create({ data: {
-        ...scalarFields(input), slug, startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null,
-        sources: { create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) },
-        categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) },
-        topicLinks: { create: input.topicIds.map((topicId) => ({ topicId })) },
-      }, include: recordInclude });
+      const record = await prisma.$transaction(async (tx) => {
+        const created = await tx.exhibition.create({ data: {
+          ...scalarFields(input), slug, startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null,
+          createdById: options.actorId, updatedById: options.actorId,
+          sources: { create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) },
+          categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) },
+          topicLinks: { create: input.topicIds.map((topicId) => ({ topicId })) },
+        }, include: recordInclude });
+        if (options.actorId) await tx.auditLog.create({ data: { actorUserId: options.actorId, action: "CREATE_EXHIBITION", entityType: "EXHIBITION", entityId: created.id, entityLabel: created.name, description: `Created exhibition ${created.name}` } });
+        return created;
+      });
       return mapRecord(record as unknown as Record<string, unknown>);
     } catch (error) {
       if (!canUseDemoFallback(error)) throw error;
@@ -264,7 +279,7 @@ export async function createExhibition(raw: ExhibitionInput, options: { allowDup
   return item;
 }
 
-export async function updateExhibition(id: string, raw: ExhibitionInput, options: { skipDuplicateCheck?: boolean } = {}) {
+export async function updateExhibition(id: string, raw: ExhibitionInput, options: { skipDuplicateCheck?: boolean; actorId?: string } = {}) {
   const input = await validatedInput(raw);
   if (!options.skipDuplicateCheck) {
     const duplicates = await findDuplicateExhibitions(input, id);
@@ -272,12 +287,20 @@ export async function updateExhibition(id: string, raw: ExhibitionInput, options
   }
   if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
     try {
-      const record = await prisma.exhibition.update({ where: { id }, data: {
-        ...scalarFields(input), startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null,
-        sources: { deleteMany: {}, create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) },
-        categories: { deleteMany: {}, create: input.categoryIds.map((categoryId) => ({ categoryId })) },
-        topicLinks: { deleteMany: {}, create: input.topicIds.map((topicId) => ({ topicId })) },
-      }, include: recordInclude });
+      const record = await prisma.$transaction(async (tx) => {
+        const before = await tx.exhibition.findUniqueOrThrow({ where: { id } });
+        const next = scalarFields(input);
+        const labels: Record<string, string> = { name: "Name", tagline: "Tagline", industry: "Categories", eventType: "Event Type", country: "Country", countryCode: "Country Code", city: "City", venue: "Venue", address: "Address", startDate: "Start Date", endDate: "End Date", timezone: "Timezone", organizer: "Organizer", website: "Website", description: "Description", aiReport: "AI Report", topics: "Topics" };
+        const changed = Object.keys(labels).filter((key) => JSON.stringify((before as unknown as Record<string, unknown>)[key]) !== JSON.stringify((next as unknown as Record<string, unknown>)[key])).map((key) => labels[key]);
+        const updated = await tx.exhibition.update({ where: { id }, data: {
+          ...next, startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null, updatedById: options.actorId,
+          sources: { deleteMany: {}, create: input.sources.map((source) => ({ ...source, lastChecked: new Date(source.lastChecked) })) },
+          categories: { deleteMany: {}, create: input.categoryIds.map((categoryId) => ({ categoryId })) },
+          topicLinks: { deleteMany: {}, create: input.topicIds.map((topicId) => ({ topicId })) },
+        }, include: recordInclude });
+        if (options.actorId) await tx.auditLog.create({ data: { actorUserId: options.actorId, action: "UPDATE_EXHIBITION", entityType: "EXHIBITION", entityId: updated.id, entityLabel: updated.name, description: changed.length ? `Updated ${changed.join(", ")}` : `Updated exhibition ${updated.name}`, metadata: { changedFields: changed } } });
+        return updated;
+      });
       return mapRecord(record as unknown as Record<string, unknown>);
     } catch (error) {
       if (!canUseDemoFallback(error)) throw error;
@@ -292,12 +315,33 @@ export async function updateExhibition(id: string, raw: ExhibitionInput, options
   return updated;
 }
 
-export async function deleteExhibition(id: string) {
+export async function deleteExhibition(id: string, actorId?: string) {
   if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
-    try { await prisma.exhibition.delete({ where: { id } }); return; }
+    try { await prisma.$transaction(async (tx) => { const item = await tx.exhibition.findUniqueOrThrow({ where: { id }, select: { id: true, name: true } }); await tx.exhibition.delete({ where: { id } }); if (actorId) await tx.auditLog.create({ data: { actorUserId: actorId, action: "DELETE_EXHIBITION", entityType: "EXHIBITION", entityId: item.id, entityLabel: item.name, description: `Deleted exhibition ${item.name}` } }); }); return; }
     catch (error) { if (!canUseDemoFallback(error)) throw error; reportDemoFallback(error); }
   }
   globalStore.iecDemoExhibitions = globalStore.iecDemoExhibitions!.filter((item) => item.id !== id);
+}
+
+export async function setEmailFollowUpStatus(id: string, kind: "pre" | "post", sent: boolean, actorId: string) {
+  const now = new Date();
+  const isPre = kind === "pre";
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.exhibition.findUniqueOrThrow({ where: { id }, select: { id: true, name: true } });
+    const updated = await tx.exhibition.update({ where: { id }, data: isPre ? {
+      preEventEmailSent: sent, preEventEmailSentAt: sent ? now : null, preEventEmailSentById: sent ? actorId : null, updatedById: actorId,
+    } : {
+      postEventEmailSent: sent, postEventEmailSentAt: sent ? now : null, postEventEmailSentById: sent ? actorId : null, updatedById: actorId,
+    }, include: recordInclude });
+    await tx.auditLog.create({ data: {
+      actorUserId: actorId,
+      action: isPre ? (sent ? "PRE_EVENT_EMAIL_MARKED_SENT" : "PRE_EVENT_EMAIL_MARKED_UNSENT") : (sent ? "POST_EVENT_EMAIL_MARKED_SENT" : "POST_EVENT_EMAIL_MARKED_UNSENT"),
+      entityType: "EXHIBITION", entityId: existing.id, entityLabel: existing.name,
+      description: `Marked ${isPre ? "pre-event" : "post-event"} email as ${sent ? "sent" : "not sent"}`,
+      metadata: { sent },
+    } });
+    return mapRecord(updated as unknown as Record<string, unknown>);
+  });
 }
 
 export async function toggleSaved(id: string) {

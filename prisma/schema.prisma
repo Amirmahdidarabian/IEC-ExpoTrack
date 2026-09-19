@@ -7,36 +7,154 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum Permission {
+  VIEW_EXHIBITIONS
+  CREATE_EXHIBITIONS
+  UPDATE_EXHIBITIONS
+  DELETE_EXHIBITIONS
+  VIEW_ADMIN_DASHBOARD
+  MANAGE_USERS
+  VIEW_AUDIT_LOGS
+}
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  CREATE_EXHIBITION
+  UPDATE_EXHIBITION
+  DELETE_EXHIBITION
+  PRE_EVENT_EMAIL_MARKED_SENT
+  PRE_EVENT_EMAIL_MARKED_UNSENT
+  POST_EVENT_EMAIL_MARKED_SENT
+  POST_EVENT_EMAIL_MARKED_UNSENT
+  CREATE_USER
+  UPDATE_USER
+  DISABLE_USER
+  ENABLE_USER
+  CHANGE_USER_PERMISSIONS
+  RESET_USER_PASSWORD
+  CHANGE_OWN_PASSWORD
+  CHANGE_USERNAME
+}
+
+enum AuditEntityType {
+  EXHIBITION
+  USER
+  AUTH
+  SYSTEM
+}
+
+model User {
+  id                   String           @id @default(cuid())
+  username             String           @unique
+  passwordHash         String
+  role                 UserRole         @default(USER)
+  isActive             Boolean          @default(true)
+  mustChangePassword   Boolean          @default(true)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  lastLoginAt          DateTime?
+  permissions          UserPermission[]
+  sessions             Session[]
+  auditLogs            AuditLog[]       @relation("AuditActor")
+  createdExhibitions   Exhibition[]     @relation("ExhibitionCreatedBy")
+  updatedExhibitions   Exhibition[]     @relation("ExhibitionUpdatedBy")
+  preEmailExhibitions  Exhibition[]     @relation("ExhibitionPreEmailBy")
+  postEmailExhibitions Exhibition[]     @relation("ExhibitionPostEmailBy")
+
+  @@index([isActive])
+}
+
+model UserPermission {
+  userId     String
+  permission Permission
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permission])
+  @@index([permission])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id          String          @id @default(cuid())
+  actorUserId String?
+  action      AuditAction
+  entityType  AuditEntityType
+  entityId    String?
+  entityLabel String?
+  description String
+  metadata    Json?
+  createdAt   DateTime        @default(now())
+  actor       User?           @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([actorUserId])
+  @@index([action])
+}
+
 model Exhibition {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  name        String
-  tagline     String   @default("")
-  industry    String   @default("Energy")
-  eventType   String   @default("International Exhibition")
-  country     String
-  countryCode String?
-  city        String   @default("")
-  venue       String   @default("")
-  address     String   @default("")
-  startDate   DateTime
-  endDate     DateTime?
-  timezone    String   @default("UTC")
-  organizer   String   @default("")
-  website     String   @default("")
-  description String   @default("")
-  aiReport    String   @default("")
-  topics      Json
-  saved       Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  sources     Source[]
-  categories  ExhibitionCategory[]
-  topicLinks  ExhibitionTopic[]
+  id                     String               @id @default(cuid())
+  slug                   String               @unique
+  name                   String
+  tagline                String               @default("")
+  industry               String               @default("Energy")
+  eventType              String               @default("International Exhibition")
+  country                String
+  countryCode            String?
+  city                   String               @default("")
+  venue                  String               @default("")
+  address                String               @default("")
+  startDate              DateTime
+  endDate                DateTime?
+  timezone               String               @default("UTC")
+  organizer              String               @default("")
+  website                String               @default("")
+  description            String               @default("")
+  aiReport               String               @default("")
+  topics                 Json
+  saved                  Boolean              @default(false)
+  preEventEmailSent      Boolean              @default(false)
+  preEventEmailSentAt    DateTime?
+  preEventEmailSentById  String?
+  postEventEmailSent     Boolean              @default(false)
+  postEventEmailSentAt   DateTime?
+  postEventEmailSentById String?
+  createdById            String?
+  updatedById            String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  sources                Source[]
+  categories             ExhibitionCategory[]
+  topicLinks             ExhibitionTopic[]
+  createdBy              User?                @relation("ExhibitionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy              User?                @relation("ExhibitionUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  preEventEmailSentBy    User?                @relation("ExhibitionPreEmailBy", fields: [preEventEmailSentById], references: [id], onDelete: SetNull)
+  postEventEmailSentBy   User?                @relation("ExhibitionPostEmailBy", fields: [postEventEmailSentById], references: [id], onDelete: SetNull)
 
   @@index([startDate])
   @@index([country])
   @@index([industry])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([createdById])
+  @@index([updatedById])
 }
 
 model IndustryCategory {

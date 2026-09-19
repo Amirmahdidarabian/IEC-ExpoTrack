@@ -13,6 +13,8 @@ export type TaxonomyItem = {
   usageCount?: number;
 };
 
+export type UserReference = { id: string; username: string };
+
 export type Exhibition = {
   id: string;
   slug: string;
@@ -36,6 +38,14 @@ export type Exhibition = {
   categories: TaxonomyItem[];
   topicItems: TaxonomyItem[];
   saved: boolean;
+  preEventEmailSent?: boolean;
+  preEventEmailSentAt?: string | null;
+  preEventEmailSentBy?: UserReference | null;
+  postEventEmailSent?: boolean;
+  postEventEmailSentAt?: string | null;
+  postEventEmailSentBy?: UserReference | null;
+  createdBy?: UserReference | null;
+  updatedBy?: UserReference | null;
   createdAt: string;
   updatedAt: string;
   sources: Source[];

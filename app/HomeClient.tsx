@@ -13,15 +13,16 @@ export function blankExhibition(): ExhibitionInput {
   return { name: "", tagline: "", industry: "", categoryIds: [], topicIds: [], eventType: "International Exhibition", country: "", countryCode: "", city: "", venue: "", address: "", startDate: "", endDate: null, timezone: "", organizer: "", website: "", description: "", aiReport: "", topics: [], sources: [] };
 }
 
-export function HomeClient() {
+export function HomeClient({ user }: { user: { username: string; role: string; permissions: string[] } | null }) {
   const params = useSearchParams();
   const [adding, setAdding] = useState(() => params.get("add") === "manual");
-  return <main className="home-page"><Header publicNav /><div className="hero-backdrop" /><section className="home-hero"><div className="home-copy">
+  const canCreate = user?.role === "ADMIN" || user?.permissions.includes("CREATE_EXHIBITIONS");
+  return <main className="home-page"><Header publicNav user={user} /><div className="hero-backdrop" /><section className="home-hero"><div className="home-copy">
     <p className="hero-kicker"><i /> Global exhibition intelligence</p>
-    <h1>Build a More Connected<br /><strong>Energy Future</strong></h1>
-    <p className="hero-subtitle">Create and manage verified global exhibition records.<br className="desktop-only" /> Use AI only when you want a faster first draft.</p>
-    <div className="hero-actions"><button className="button primary hero-add" onClick={() => setAdding(true)}><Plus /> Add New Exhibition <ArrowRight /></button><Link className="button outline hero-view" href="/exhibitions"><BarChart3 /> View All Exhibitions</Link></div>
+    <h1>International <strong>Energy Club</strong></h1>
+    <p className="hero-subtitle">Global Authority in Offshore<br className="desktop-only" /> &amp; Energy Visualization</p>
+    <div className="hero-actions">{canCreate ? <button className="button primary hero-add" onClick={() => setAdding(true)}><Plus /> Add New Exhibition <ArrowRight /></button> : <Link className="button primary hero-add" href="/login"><Plus /> Sign in to Manage <ArrowRight /></Link>}<Link className="button outline hero-view" href="/exhibitions"><BarChart3 /> View All Exhibitions</Link></div>
   </div></section><Footer />
-    {adding && <ReviewModal initial={blankExhibition()} mode="manual" onClose={() => { setAdding(false); history.replaceState(null, "", "/"); }} />}
+    {adding && canCreate && <ReviewModal initial={blankExhibition()} mode="manual" onClose={() => { setAdding(false); history.replaceState(null, "", "/"); }} />}
   </main>;
 }
