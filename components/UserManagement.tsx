@@ -19,12 +19,12 @@ export function UserManagement({ initialUsers, currentUserId }: { initialUsers: 
   const [users, setUsers] = useState(initialUsers); const [creating, setCreating] = useState(false); const [error, setError] = useState(""); const [notice, setNotice] = useState("");
   function replace(user: ManagedUser) { setUsers((items) => items.map((item) => item.id === user.id ? { ...user, permissions: (user.permissions as unknown as { permission: string }[]).map?.((value) => typeof value === "string" ? value : value.permission) ?? [] } : item)); }
   async function create(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setCreating(true); setError(""); const data = new FormData(event.currentTarget);
+    event.preventDefault(); const form = event.currentTarget; setCreating(true); setError(""); const data = new FormData(form);
     try {
       const selected = permissions.filter(([value]) => data.getAll("permissions").includes(value)).map(([value]) => value);
       const payload = await request("/api/admin/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: data.get("username"), temporaryPassword: data.get("temporaryPassword"), role: data.get("role"), isActive: true, permissions: selected }) });
       setUsers((items) => [{ ...payload, createdAt: payload.createdAt, updatedAt: payload.updatedAt, lastLoginAt: payload.lastLoginAt, permissions: payload.permissions.map((entry: { permission: string }) => entry.permission) }, ...items]);
-      event.currentTarget.reset(); setNotice("User created successfully.");
+      form.reset(); setNotice("User created successfully.");
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to create user."); } finally { setCreating(false); }
   }
   return <><section className="panel create-user"><div className="section-heading"><div><p className="eyebrow">New employee</p><h2>Create User</h2></div><UserPlus /></div><form onSubmit={create}><label>Username<input name="username" required minLength={3} /></label><label>Temporary Password<input name="temporaryPassword" type="password" required minLength={12} autoComplete="new-password" /></label><label>Role<select name="role"><option value="USER">User</option><option value="ADMIN">Administrator</option></select></label><fieldset><legend>Initial permissions</legend>{permissions.map(([value, label]) => <label key={value}><input type="checkbox" name="permissions" value={value} defaultChecked={value === "VIEW_EXHIBITIONS"} /> {label}</label>)}</fieldset><button className="button primary" disabled={creating}>{creating ? "Creating…" : "Create User"}</button></form>{error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="success-note" role="status"><Check /> {notice}</p>}</section><section className="user-list">{users.map((user) => <UserRow key={user.id} user={user} isSelf={user.id === currentUserId} onChange={replace} />)}</section></>;
