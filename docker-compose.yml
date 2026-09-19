@@ -23,8 +23,8 @@ services:
     environment:
       DATABASE_URL: postgresql://iec:change-me@db:5432/iec_expobot?schema=public
       NODE_ENV: production
-      INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:?Set INITIAL_ADMIN_USERNAME in the host .env file}
-      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:?Set INITIAL_ADMIN_PASSWORD in the host .env file}
+      INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
     depends_on:
       db:
         condition: service_healthy
