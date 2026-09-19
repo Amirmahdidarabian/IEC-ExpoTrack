@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, HttpError } from "@/lib/auth/errors";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
-import { createSession, requireAuthenticatedUser } from "@/lib/auth/session";
+import { createSession, requestUsesHttps, requireAuthenticatedUser } from "@/lib/auth/session";
 import { ownAccountSchema } from "@/lib/auth/validation";
 import { prisma } from "@/lib/prisma";
 
@@ -26,7 +26,7 @@ export async function PATCH(request: NextRequest) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new HttpError("That username is already in use.", 409);
       throw error;
     }
-    if (input.newPassword) await createSession(actor.id);
+    if (input.newPassword) await createSession(actor.id, requestUsesHttps(request));
     return NextResponse.json({ ok: true });
   } catch (error) { return errorResponse(error, "Unable to update account."); }
 }

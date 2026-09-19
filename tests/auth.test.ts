@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { effectivePermissions, hasPermission } from "@/lib/auth/permissions";
 import { createUserSchema, ownAccountSchema, passwordSchema, usernameSchema } from "@/lib/auth/validation";
+import { requestUsesHttps } from "@/lib/auth/session";
 
 describe("password security", () => {
   it("hashes and verifies a valid password without retaining plaintext", async () => {
@@ -41,4 +42,9 @@ describe("account validation", () => {
     expect(createUserSchema.safeParse({ username: "sara", temporaryPassword: "Temporary2026!", role: "USER", isActive: true, permissions: ["VIEW_EXHIBITIONS", "UPDATE_EXHIBITIONS"] }).success).toBe(true);
     expect(createUserSchema.safeParse({ username: "sara", temporaryPassword: "Temporary2026!", role: "USER", permissions: ["ROOT_ACCESS"] }).success).toBe(false);
   });
+});
+
+describe("session cookie transport", () => {
+  it("uses secure cookies behind HTTPS proxies", () => expect(requestUsesHttps(new Request("http://app.internal/login", { headers: { "x-forwarded-proto": "https" } }))).toBe(true));
+  it("allows local HTTP access without incorrectly marking the cookie secure", () => expect(requestUsesHttps(new Request("http://143.20.60.112:3000/login"))).toBe(false));
 });

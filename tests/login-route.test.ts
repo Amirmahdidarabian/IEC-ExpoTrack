@@ -10,7 +10,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   user: { findUnique: vi.fn(() => mocks.user), update: vi.fn(() => Promise.resolve({})) },
   auditLog: { create: vi.fn(() => Promise.resolve({})) }, $transaction: mocks.transaction,
 } }));
-vi.mock("@/lib/auth/session", () => ({ createSession: mocks.createSession, ensureInitialAdmin: mocks.ensureInitialAdmin }));
+vi.mock("@/lib/auth/session", () => ({ createSession: mocks.createSession, ensureInitialAdmin: mocks.ensureInitialAdmin, requestUsesHttps: vi.fn(() => false) }));
 vi.mock("@/lib/auth/password", () => ({ verifyPassword: mocks.verifyPassword }));
 
 import { POST } from "@/app/api/auth/login/route";
@@ -22,7 +22,7 @@ function login(username = "sara", password = "StrongPassword2026!") {
 describe("login endpoint", () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.transaction.mockResolvedValue([]); mocks.verifyPassword.mockResolvedValue(true); mocks.user = { id: "user-1", username: "sara", passwordHash: "hash", isActive: true, mustChangePassword: false }; });
   it("creates a session and audit transaction for valid credentials", async () => {
-    const response = await login(); expect(response.status).toBe(200); expect(mocks.transaction).toHaveBeenCalledOnce(); expect(mocks.createSession).toHaveBeenCalledWith("user-1");
+    const response = await login(); expect(response.status).toBe(200); expect(mocks.transaction).toHaveBeenCalledOnce(); expect(mocks.createSession).toHaveBeenCalledWith("user-1", false);
   });
   it("rejects invalid credentials", async () => {
     mocks.verifyPassword.mockResolvedValue(false); const response = await login(); expect(response.status).toBe(401); expect(mocks.createSession).not.toHaveBeenCalled();

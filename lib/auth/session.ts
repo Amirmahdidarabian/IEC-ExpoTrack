@@ -37,12 +37,17 @@ export async function ensureInitialAdmin() {
   }
 }
 
-export async function createSession(userId: string) {
+export async function createSession(userId: string, secure = process.env.NODE_ENV === "production") {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   await prisma.session.create({ data: { userId, tokenHash: tokenHash(token), expiresAt } });
   const jar = await cookies();
-  jar.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", expires: expiresAt });
+  jar.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", secure, path: "/", expires: expiresAt });
+}
+
+export function requestUsesHttps(request: Request) {
+  const forwarded = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  return forwarded ? forwarded === "https" : new URL(request.url).protocol === "https:";
 }
 
 export async function getCurrentUser(): Promise<AuthorizedUser | null> {

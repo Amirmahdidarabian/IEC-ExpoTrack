@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createSession, ensureInitialAdmin } from "@/lib/auth/session";
+import { createSession, ensureInitialAdmin, requestUsesHttps } from "@/lib/auth/session";
 import { verifyPassword } from "@/lib/auth/password";
 import { loginSchema } from "@/lib/auth/validation";
 
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }),
       prisma.auditLog.create({ data: { actorUserId: user.id, action: "LOGIN", entityType: "AUTH", entityId: user.id, entityLabel: user.username, description: `${user.username} signed in` } }),
     ]);
-    await createSession(user.id);
+    await createSession(user.id, requestUsesHttps(request));
     return NextResponse.json({ ok: true, mustChangePassword: user.mustChangePassword });
   } catch {
     attempts.delete(key);
