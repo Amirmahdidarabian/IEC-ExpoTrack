@@ -28,6 +28,18 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: ["sh", "-c", "npx prisma migrate deploy && node server.js"]
+      migrate:
+        condition: service_completed_successfully
+    command: ["node", "server.js"]
+  migrate:
+    build:
+      context: .
+      target: migrator
+    environment:
+      DATABASE_URL: postgresql://iec:change-me@db:5432/iec_expobot?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
 volumes:
   postgres_data:
