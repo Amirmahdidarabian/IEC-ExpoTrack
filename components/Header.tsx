@@ -5,6 +5,7 @@ import { ChevronDown, CircleUserRound, LogOut, Plus, Settings, ShieldCheck } fro
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Brand } from "./Brand";
+import { ThemeToggle } from "./ThemeToggle";
 
 const links = [
   ["/", "Home"], ["/exhibitions", "Exhibitions"], ["/saved", "Saved"],
@@ -32,10 +33,11 @@ export function Header({ publicNav = false, user }: { publicNav?: boolean; user?
         {!publicNav && canAdmin && <Link onClick={() => setMobileOpen(false)} className={pathname.startsWith("/admin") ? "active" : ""} href={adminHref}>Administration</Link>}
         {publicNav && <a href="mailto:hello@internationalenergy.club">Contact</a>}
       </nav>
-      {!publicNav && user && <div className="header-actions">
-        <div className="account-wrap"><button className="account-button" onClick={() => setAccountOpen((v) => !v)}><CircleUserRound /><span>{user.username}</span><ChevronDown size={15} /></button>{accountOpen && <div className="mini-popover account-popover"><strong>{user.username}</strong><span>{user.role === "ADMIN" ? "Administrator" : "IEC employee"}</span><Link href="/settings/account"><Settings /> Account settings</Link>{canAdmin && <Link href={adminHref}><ShieldCheck /> Administration</Link>}<button onClick={logout}><LogOut /> Sign out</button></div>}</div>
-        {canCreate && <Link href="/?add=manual" className="button outline add-button"><Plus size={19} /> Add Exhibition</Link>}
-      </div>}
+      <div className="header-actions">
+        <ThemeToggle />
+        {!publicNav && user && <div className="account-wrap"><button className="account-button" onClick={() => setAccountOpen((v) => !v)}><CircleUserRound /><span>{user.username}</span><ChevronDown size={15} /></button>{accountOpen && <div className="mini-popover account-popover"><strong>{user.username}</strong><span>{user.role === "ADMIN" ? "Administrator" : "IEC employee"}</span><Link href="/settings/account"><Settings /> Account settings</Link>{canAdmin && <Link href={adminHref}><ShieldCheck /> Administration</Link>}<button onClick={logout}><LogOut /> Sign out</button></div>}</div>}
+        {!publicNav && canCreate && <Link href="/?add=manual" className="button outline add-button"><Plus size={19} /> Add Exhibition</Link>}
+      </div>
     </header>
   );
 }
