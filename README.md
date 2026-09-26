@@ -34,7 +34,7 @@ npm run db:seed
 npm run dev
 ```
 
-Open `http://localhost:3000`. On macOS/Linux, use `cp .env.example .env` instead of `copy`.
+Open `http://localhost:3100`. On macOS/Linux, use `cp .env.example .env` instead of `copy`.
 
 ## Environment variables
 
