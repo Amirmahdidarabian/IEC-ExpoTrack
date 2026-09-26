@@ -11,7 +11,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   auditLog: { create: vi.fn(() => Promise.resolve({})) }, $transaction: mocks.transaction,
 } }));
 vi.mock("@/lib/auth/session", () => ({ createSession: mocks.createSession, ensureInitialAdmin: mocks.ensureInitialAdmin, requestUsesHttps: vi.fn(() => false) }));
-vi.mock("@/lib/auth/password", () => ({ verifyPassword: mocks.verifyPassword }));
+vi.mock("@/lib/auth/password", () => ({ verifyPassword: mocks.verifyPassword, hashPassword: vi.fn(() => Promise.resolve("dummy-hash")) }));
 
 import { POST } from "@/app/api/auth/login/route";
 

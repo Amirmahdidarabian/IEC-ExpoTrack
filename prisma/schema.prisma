@@ -40,6 +40,8 @@ enum AuditAction {
   RESET_USER_PASSWORD
   CHANGE_OWN_PASSWORD
   CHANGE_USERNAME
+  EXPORT_DATA
+  IMPORT_DATA
 }
 
 enum AuditEntityType {

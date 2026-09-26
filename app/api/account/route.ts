@@ -5,9 +5,11 @@ import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createSession, requestUsesHttps, requireAuthenticatedUser } from "@/lib/auth/session";
 import { ownAccountSchema } from "@/lib/auth/validation";
 import { prisma } from "@/lib/prisma";
+import { requireSameOrigin } from "@/lib/auth/request-security";
 
 export async function PATCH(request: NextRequest) {
   try {
+    requireSameOrigin(request);
     const actor = await requireAuthenticatedUser({ allowPasswordChange: true });
     const input = ownAccountSchema.parse(await request.json());
     if (!input.username && !input.newPassword) throw new HttpError("No account changes were supplied.", 400);

@@ -3,6 +3,7 @@ import { deleteExhibition, DuplicateExhibitionError, getExhibition, updateExhibi
 import { Permission } from "@prisma/client";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { errorResponse } from "@/lib/auth/errors";
+import { requireSameOrigin } from "@/lib/auth/request-security";
 
 export async function GET(_: NextRequest, context: { params: Promise<{ id: string }> }) {
   try { await requireAuthenticatedUser({ permission: Permission.VIEW_EXHIBITIONS }); } catch (error) { return errorResponse(error); }
@@ -12,6 +13,7 @@ export async function GET(_: NextRequest, context: { params: Promise<{ id: strin
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    requireSameOrigin(request);
     const actor = await requireAuthenticatedUser({ permission: Permission.UPDATE_EXHIBITIONS });
     return NextResponse.json(await updateExhibition((await context.params).id, await request.json(), { actorId: actor.id }));
   } catch (error) {
@@ -20,8 +22,9 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   }
 }
 
-export async function DELETE(_: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    requireSameOrigin(request);
     const actor = await requireAuthenticatedUser({ permission: Permission.DELETE_EXHIBITIONS });
     await deleteExhibition((await context.params).id, actor.id);
     return NextResponse.json({ ok: true });

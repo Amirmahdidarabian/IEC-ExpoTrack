@@ -43,7 +43,7 @@ export async function searchExhibitionsWithAI(query: string): Promise<AiSearchRe
     const live = await searchWithOpenAI(query);
     if (live) return live;
   } catch (error) {
-    console.error("OpenAI exhibition search failed; using verified demo catalog", error);
+    console.error("OpenAI exhibition search failed; using verified demo catalog", { name: error instanceof Error ? error.name : "Error" });
   }
   const tokens = normalized.split(/\s+/).filter((token) => token.length > 1);
   const matches = seedExhibitions.filter((item) => {

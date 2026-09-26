@@ -14,7 +14,9 @@ export function LoginForm() {
       const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: data.get("username"), password: data.get("password") }) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Sign in failed.");
-      const next = payload.mustChangePassword ? "/settings/account?required=1" : params.get("next") || "/exhibitions";
+      const requested = params.get("next");
+      const safeNext = requested?.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\") ? requested : "/exhibitions";
+      const next = payload.mustChangePassword ? "/settings/account?required=1" : safeNext;
       router.replace(next); router.refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Sign in failed."); }
     finally { setBusy(false); }

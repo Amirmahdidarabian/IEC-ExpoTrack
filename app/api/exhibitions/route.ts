@@ -4,6 +4,7 @@ import type { ExhibitionInput } from "@/lib/exhibitions/types";
 import { Permission } from "@prisma/client";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { errorResponse } from "@/lib/auth/errors";
+import { requireSameOrigin } from "@/lib/auth/request-security";
 
 export async function GET(request: NextRequest) {
   const p = request.nextUrl.searchParams;
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    requireSameOrigin(request);
     const actor = await requireAuthenticatedUser({ permission: Permission.CREATE_EXHIBITIONS });
     const payload = await request.json();
     const input = (payload.exhibition ?? payload) as ExhibitionInput;

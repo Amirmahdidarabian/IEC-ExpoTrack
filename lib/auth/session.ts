@@ -69,11 +69,23 @@ export async function requireAuthenticatedUser(options: { permission?: Permissio
   return user;
 }
 
+export async function requireAdminUser() {
+  const user = await requireAuthenticatedUser();
+  if (user.role !== UserRole.ADMIN) throw new HttpError("Administrator access required.", 403);
+  return user;
+}
+
 export async function requirePageUser(permission?: Permission, allowPasswordChange = false) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.mustChangePassword && !allowPasswordChange) redirect("/settings/account?required=1");
   if (permission && !hasPermission(user, permission)) redirect("/exhibitions?forbidden=1");
+  return user;
+}
+
+export async function requireAdminPageUser() {
+  const user = await requirePageUser();
+  if (user.role !== UserRole.ADMIN) redirect("/exhibitions?forbidden=1");
   return user;
 }
 
