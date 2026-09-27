@@ -28,7 +28,7 @@ export async function PATCH(request: NextRequest) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new HttpError("That username is already in use.", 409);
       throw error;
     }
-    if (input.newPassword) await createSession(actor.id, requestUsesHttps(request));
+    if (input.newPassword) await createSession(actor.id, process.env.NODE_ENV === "production" || requestUsesHttps(request));
     return NextResponse.json({ ok: true });
   } catch (error) { return errorResponse(error, "Unable to update account."); }
 }

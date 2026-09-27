@@ -3,5 +3,5 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
-  test: { environment: "node", env: { DATABASE_URL: "" } },
+  test: { environment: "node", exclude: ["**/node_modules/**", "**/.next/**"], env: { DATABASE_URL: "" } },
 });

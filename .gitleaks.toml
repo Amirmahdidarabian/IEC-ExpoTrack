@@ -1,0 +1,12 @@
+title = "IEC ExpoTrack secret scanning"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented placeholders and generated dependency metadata"
+paths = [
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)\.env\.example$''',
+  '''(^|/)\.env\.production\.example$'''
+]

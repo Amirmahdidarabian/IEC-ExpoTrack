@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   user: null as null | { id: string; username: string; passwordHash: string; isActive: boolean; mustChangePassword: boolean },
   createSession: vi.fn(), ensureInitialAdmin: vi.fn(), verifyPassword: vi.fn(), transaction: vi.fn(),
+  assertRateLimit: vi.fn(), recordRateLimitFailure: vi.fn(), clearRateLimit: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: {
@@ -12,6 +13,12 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
 } }));
 vi.mock("@/lib/auth/session", () => ({ createSession: mocks.createSession, ensureInitialAdmin: mocks.ensureInitialAdmin, requestUsesHttps: vi.fn(() => false) }));
 vi.mock("@/lib/auth/password", () => ({ verifyPassword: mocks.verifyPassword, hashPassword: vi.fn(() => Promise.resolve("dummy-hash")) }));
+vi.mock("@/lib/security/rate-limit", () => ({
+  assertRateLimit: mocks.assertRateLimit,
+  recordRateLimitFailure: mocks.recordRateLimitFailure,
+  clearRateLimit: mocks.clearRateLimit,
+  requestIdentifier: vi.fn((_: Request, account: string) => `local:${account}`),
+}));
 
 import { POST } from "@/app/api/auth/login/route";
 
@@ -22,15 +29,20 @@ function login(username = "sara", password = "StrongPassword2026!") {
 describe("login endpoint", () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.transaction.mockResolvedValue([]); mocks.verifyPassword.mockResolvedValue(true); mocks.user = { id: "user-1", username: "sara", passwordHash: "hash", isActive: true, mustChangePassword: false }; });
   it("creates a session and audit transaction for valid credentials", async () => {
-    const response = await login(); expect(response.status).toBe(200); expect(mocks.transaction).toHaveBeenCalledOnce(); expect(mocks.createSession).toHaveBeenCalledWith("user-1", false);
+    const response = await login(); expect(response.status).toBe(200); expect(mocks.transaction).toHaveBeenCalledOnce(); expect(mocks.createSession).toHaveBeenCalledWith("user-1", process.env.NODE_ENV === "production");
   });
   it("rejects invalid credentials", async () => {
-    mocks.verifyPassword.mockResolvedValue(false); const response = await login(); expect(response.status).toBe(401); expect(mocks.createSession).not.toHaveBeenCalled();
+    mocks.verifyPassword.mockResolvedValue(false); const response = await login(); expect(response.status).toBe(401); expect(mocks.createSession).not.toHaveBeenCalled(); expect(mocks.recordRateLimitFailure).toHaveBeenCalledOnce();
   });
   it("rejects disabled users even with a matching password", async () => {
     mocks.user = { ...mocks.user!, isActive: false }; const response = await login(); expect(response.status).toBe(401); expect(mocks.createSession).not.toHaveBeenCalled();
   });
   it("directs first-login users to change their password", async () => {
     mocks.user = { ...mocks.user!, mustChangePassword: true }; const response = await login(); await expect(response.json()).resolves.toMatchObject({ mustChangePassword: true });
+  });
+  it("returns a temporary lockout without querying credentials", async () => {
+    const { HttpError } = await import("@/lib/auth/errors");
+    mocks.assertRateLimit.mockRejectedValueOnce(new HttpError("Too many attempts. Please wait and try again.", 429));
+    const response = await login(); expect(response.status).toBe(429); expect(mocks.verifyPassword).not.toHaveBeenCalled();
   });
 });

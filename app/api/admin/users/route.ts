@@ -4,6 +4,7 @@ import { errorResponse } from "@/lib/auth/errors";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { createUser, listUsers } from "@/lib/users/service";
 import { requireSameOrigin } from "@/lib/auth/request-security";
+import { consumeRateLimit, requestIdentifier } from "@/lib/security/rate-limit";
 
 export async function GET() {
   try { await requireAuthenticatedUser({ permission: Permission.MANAGE_USERS }); return NextResponse.json(await listUsers()); }
@@ -11,6 +12,6 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  try { requireSameOrigin(request); const actor = await requireAuthenticatedUser({ permission: Permission.MANAGE_USERS }); return NextResponse.json(await createUser(actor, await request.json()), { status: 201 }); }
+  try { requireSameOrigin(request); const actor = await requireAuthenticatedUser({ permission: Permission.MANAGE_USERS }); await consumeRateLimit("admin-user-create", requestIdentifier(request, actor.id), { limit: 20, windowMs: 15 * 60 * 1000 }); return NextResponse.json(await createUser(actor, await request.json()), { status: 201 }); }
   catch (error) { return errorResponse(error, "Unable to create user."); }
 }

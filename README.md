@@ -18,6 +18,8 @@ Production-oriented exhibition management for the International Energy Club, wit
 - Username/password authentication with opaque database-backed sessions and forced first-login password changes
 - Granular permissions, user lifecycle management and final-administrator protection
 - Immutable audit history and manual pre/post-event email follow-up tracking
+- Administrator-only production readiness and security health dashboard
+- Persistent login and sensitive-admin-operation rate limiting
 - Production Docker, Compose, PM2 and Nginx guidance
 
 When `DATABASE_URL` is omitted, repository-level exhibition reads can still use the non-persistent in-process demo catalog in development. The authenticated application requires PostgreSQL because users, sessions, permissions and audit history are intentionally persistent and server-controlled. Set PostgreSQL for application evaluation and every production environment.
@@ -41,12 +43,15 @@ Open `http://localhost:3100`. On macOS/Linux, use `cp .env.example .env` instead
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | Production | PostgreSQL connection URL used by Prisma |
+| `POSTGRES_PASSWORD` | Production | Strong PostgreSQL password used by production Compose |
+| `AUTH_SECRET` | Production | Random secret used to protect stored session-token hashes |
 | `EXHIBITION_DATA_MODE` | Optional | `auto` permits demo read fallback in development; `database` fails fast |
 | `OPENAI_API_KEY` | Optional | Enables live AI exhibition research; keep server-side |
 | `OPENAI_MODEL` | Optional | Responses API model, defaults to `gpt-5-mini` |
 | `INITIAL_ADMIN_USERNAME` | First deployment | Username used to idempotently create the initial administrator |
 | `INITIAL_ADMIN_PASSWORD` | First deployment | Temporary administrator password that must be changed at first login |
 | `NODE_ENV` | Production | Set to `production` for deployments |
+| `HTTPS_ENABLED` | Production | Set to `true` before the production build only when HTTPS will be active; enables HSTS |
 
 Local PostgreSQL is exposed only on `127.0.0.1:55432`, avoiding the default host port `5432` and leaving other local services untouched. PostgreSQL continues to use port `5432` only inside its private Docker network.
 
@@ -73,7 +78,7 @@ Do not use `prisma db push` for production.
 
 Migration `202609180002_taxonomy_and_location` preserves the legacy `industry` and `topics` values, backfills normalized category/topic entities and join tables, and adds an optional ISO `countryCode` for legacy rows. Migration `202609190001_auth_admin_audit_followup` adds users, sessions, relational permissions, immutable audit history and nullable exhibition attribution/follow-up relations without changing existing exhibition rows. No reset or destructive migration is required.
 
-The initial administrator is bootstrapped lazily and idempotently on the first login request. Existing accounts are never overwritten. Set both initial-admin variables before first sign-in, deploy the migration, and remove or rotate the bootstrap password in the environment after it has been changed. Sessions use random opaque tokens and PostgreSQL stores only their hashes, so no additional auth signing secret is required.
+The initial administrator is bootstrapped lazily and idempotently on the first login request. Existing accounts are never overwritten. Set both initial-admin variables before first sign-in, deploy the migration, and remove or rotate the bootstrap password in the environment after it has been changed. Sessions use random opaque tokens and PostgreSQL stores only HMAC-protected token hashes. Production therefore requires an independent `AUTH_SECRET`; changing it invalidates existing sessions.
 
 ## Quality and production build
 
@@ -100,12 +105,16 @@ pm2 startup
 
 ## Docker deployment
 
-Change the example database password and then run:
+Local Docker remains host-only and uses development-only defaults. For production, use `docker-compose.production.yml`; it requires external secrets, keeps PostgreSQL private, and binds Next.js to localhost for Nginx.
+
+For local Docker, run:
 
 ```bash
 docker compose up --build -d
 docker compose exec app npm run db:seed
 ```
+
+Before production deployment, run `npm run prod:check` and follow the exact environment, Docker, Nginx, HTTPS, verification, and GitHub ruleset steps in [PRODUCTION.md](PRODUCTION.md).
 
 ## Nginx reverse proxy
 
@@ -138,6 +147,8 @@ Add HTTPS with Certbot/Let’s Encrypt after DNS is pointed to the VPS. No opera
 - `/admin` — operational dashboard
 - `/admin/users` — user and permission management
 - `/admin/activity` — filterable, paginated audit history
+- `/admin/data` — validated exhibition backup and restore
+- `/admin/security` — administrator-only production and security health
 - `/api/exhibitions/*` — validated CRUD, save and AI research endpoints
 - `/api/taxonomies/*` — category/topic list and management endpoints
 - `/api/locations/*` — server-only country, city and timezone lookups

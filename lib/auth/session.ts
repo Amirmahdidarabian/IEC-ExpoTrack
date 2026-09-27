@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Permission, Prisma, UserRole } from "@prisma/client";
@@ -7,6 +7,7 @@ import { HttpError } from "./errors";
 import { hasPermission, type AuthorizedUser } from "./permissions";
 import { hashPassword } from "./password";
 import { passwordSchema, usernameSchema } from "./validation";
+import { getAuthenticationSecret } from "@/lib/security/environment";
 
 export const SESSION_COOKIE = "iec_session";
 const SESSION_DAYS = 7;
@@ -16,7 +17,7 @@ const userSelect = {
   permissions: { select: { permission: true } },
 } satisfies Prisma.UserSelect;
 
-function tokenHash(value: string) { return createHash("sha256").update(value).digest("hex"); }
+function tokenHash(value: string) { return createHmac("sha256", getAuthenticationSecret()).update(value).digest("hex"); }
 
 function safeUser(user: { id: string; username: string; role: UserRole; isActive: boolean; mustChangePassword: boolean; permissions: { permission: Permission }[] }): AuthorizedUser {
   return { ...user, permissions: user.permissions.map((entry) => entry.permission) };

@@ -1,4 +1,5 @@
 .git
+.tools
 .next
 node_modules
 coverage
@@ -7,3 +8,5 @@ coverage
 !.env.example
 npm-debug.log*
 *.tsbuildinfo
+*.rar
+.security-check.json

@@ -1,0 +1,25 @@
+server {
+    listen 80;
+    server_name exhibitions.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name exhibitions.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/exhibitions.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/exhibitions.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        # Overwrite client-supplied forwarding headers. The app is reachable
+        # only through this loopback proxy and can trust this single address.
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}

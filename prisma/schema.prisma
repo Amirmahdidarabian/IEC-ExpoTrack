@@ -94,6 +94,19 @@ model Session {
   @@index([expiresAt])
 }
 
+model SecurityRateLimit {
+  id              String    @id @default(cuid())
+  scope           String
+  identifierHash  String
+  attempts        Int       @default(0)
+  windowStartedAt DateTime  @default(now())
+  blockedUntil    DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([scope, identifierHash])
+  @@index([updatedAt])
+}
+
 model AuditLog {
   id          String          @id @default(cuid())
   actorUserId String?

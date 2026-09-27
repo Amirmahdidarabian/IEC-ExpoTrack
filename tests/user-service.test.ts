@@ -13,7 +13,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: { $transaction: mocks.transaction, user
 vi.mock("@/lib/auth/password", () => ({ hashPassword: vi.fn(() => Promise.resolve("secure-hash")) }));
 
 import { UserRole } from "@prisma/client";
-import { createUser, resetUserPassword, updateUser } from "@/lib/users/service";
+import { createUser, listUsers, resetUserPassword, updateUser } from "@/lib/users/service";
 
 const admin = { id: "admin-1", role: UserRole.ADMIN };
 
@@ -30,6 +30,11 @@ describe("user lifecycle service", () => {
     expect(mocks.transaction).toHaveBeenCalledOnce();
     expect(mocks.tx.user.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ passwordHash: "secure-hash", mustChangePassword: true }) }));
     expect(mocks.tx.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: "CREATE_USER" }) });
+  });
+  it("never requests password hashes when returning users to the client", async () => {
+    await listUsers();
+    const select = (vi.mocked((await import("@/lib/prisma")).prisma.user.findMany).mock.calls[0][0] as { select: Record<string, unknown> }).select;
+    expect(select).not.toHaveProperty("passwordHash");
   });
   it("disables users, revokes sessions and audits the lifecycle action", async () => {
     await updateUser(admin, "user-2", { isActive: false });
@@ -52,5 +57,12 @@ describe("user lifecycle service", () => {
     mocks.tx.user.findUnique.mockResolvedValue({ ...mocks.before, role: "ADMIN" }); mocks.tx.user.count.mockResolvedValue(1);
     await expect(updateUser(admin, "user-2", { isActive: false })).rejects.toThrow("final active administrator");
     expect(mocks.tx.user.update).not.toHaveBeenCalled();
+  });
+  it("ignores mass-assigned security and audit fields", async () => {
+    await updateUser(admin, "user-2", { username: "amir", passwordHash: "plaintext", actorUserId: "spoofed", role: "USER" });
+    const data = mocks.tx.user.update.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("passwordHash");
+    expect(data).not.toHaveProperty("actorUserId");
+    expect(mocks.tx.auditLog.createMany).toHaveBeenCalledWith({ data: expect.arrayContaining([expect.objectContaining({ actorUserId: "admin-1" })]) });
   });
 });

@@ -61,7 +61,7 @@ describe("export and import services", () => {
     mocks.tx.exhibition.findMany.mockResolvedValueOnce([{ ...backup().data.exhibitions[0], startDate: new Date("2027-01-01"), endDate: null, preEventEmailSentAt: new Date(date), postEventEmailSentAt: null, createdAt: new Date(date), updatedAt: new Date(date), topics: ["Hydrogen"], categories: [{ categoryId: "cat-1" }], topicLinks: [{ topicId: "topic-1" }], sources: [{ id: "source-1", label: "Official", url: "https://example.com", lastChecked: new Date(date), priority: 1 }] }]);
     const value = await createExport("admin-1"); const serialized = JSON.stringify(value);
     expect(value).toMatchObject({ format: BACKUP_FORMAT, version: 1, data: { exhibitions: [{ preEventEmailSent: true, categoryIds: ["cat-1"], topicIds: ["topic-1"] }] } });
-    expect(serialized).not.toMatch(/passwordHash|tokenHash|AUTH_SECRET|OPENAI_API_KEY|DATABASE_URL/);
+    expect(serialized).not.toMatch(/passwordHash|passwords|sessions|tokenHash|tokens|AUTH_SECRET|OPENAI_API_KEY|DATABASE_URL|POSTGRES_PASSWORD/);
     expect(mocks.tx.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ actorUserId: "admin-1", action: "EXPORT_DATA" }) });
   });
   it("previews without mutations and imports new records in one transaction", async () => {
