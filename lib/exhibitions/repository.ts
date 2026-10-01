@@ -53,9 +53,11 @@ function mapRecord(record: Record<string, unknown>): Exhibition {
     country: String(record.country), countryCode: String(record.countryCode ?? ""), city: String(record.city ?? ""), venue: String(record.venue ?? ""), address: String(record.address ?? ""),
     startDate: new Date(record.startDate as string | Date).toISOString(), endDate: record.endDate ? new Date(record.endDate as string | Date).toISOString() : null,
     timezone: String(record.timezone ?? "UTC"), organizer: String(record.organizer ?? ""), website: String(record.website ?? ""),
+    exhibitorListUrl: String(record.exhibitorListUrl ?? ""),
     description: String(record.description ?? ""), aiReport: String(record.aiReport ?? ""), topics: topicItems.length ? topicItems.map((item) => item.name) : legacyTopics,
     categories, topicItems,
     saved: Boolean(record.saved),
+    exhibitorList: Boolean(record.exhibitorList),
     preEventEmailSent: Boolean(record.preEventEmailSent), preEventEmailSentAt: record.preEventEmailSentAt ? new Date(record.preEventEmailSentAt as string | Date).toISOString() : null,
     postEventEmailSent: Boolean(record.postEventEmailSent), postEventEmailSentAt: record.postEventEmailSentAt ? new Date(record.postEventEmailSentAt as string | Date).toISOString() : null,
     preEventEmailSentBy: record.preEventEmailSentBy as { id: string; username: string } | null ?? null,
@@ -132,7 +134,7 @@ export function sortItems(items: Exhibition[], sort = "nearest", now: string | D
 }
 
 export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<ExhibitionListResult> {
-  const pageSize = Math.min(50, Math.max(1, filters.pageSize ?? 10));
+  const pageSize = Math.min(200, Math.max(1, filters.pageSize ?? 50));
   const page = Math.max(1, filters.page ?? 1);
   if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
     try {
@@ -219,7 +221,7 @@ function scalarFields(input: PreparedInput) {
     name: input.name, tagline: input.tagline, industry: input.industry, eventType: input.eventType,
     country: input.country, countryCode: input.countryCode, city: input.city, venue: input.venue, address: input.address,
     startDate: input.startDate, endDate: input.endDate, timezone: input.timezone, organizer: input.organizer,
-    website: input.website, description: input.description, aiReport: input.aiReport, topics: input.topics,
+    website: input.website, exhibitorListUrl: input.exhibitorListUrl, description: input.description, aiReport: input.aiReport, topics: input.topics,
   };
 }
 
@@ -290,7 +292,7 @@ export async function updateExhibition(id: string, raw: ExhibitionInput, options
       const record = await prisma.$transaction(async (tx) => {
         const before = await tx.exhibition.findUniqueOrThrow({ where: { id } });
         const next = scalarFields(input);
-        const labels: Record<string, string> = { name: "Name", tagline: "Tagline", industry: "Categories", eventType: "Event Type", country: "Country", countryCode: "Country Code", city: "City", venue: "Venue", address: "Address", startDate: "Start Date", endDate: "End Date", timezone: "Timezone", organizer: "Organizer", website: "Website", description: "Description", aiReport: "AI Report", topics: "Topics" };
+        const labels: Record<string, string> = { name: "Name", tagline: "Tagline", industry: "Categories", eventType: "Event Type", country: "Country", countryCode: "Country Code", city: "City", venue: "Venue", address: "Address", startDate: "Start Date", endDate: "End Date", timezone: "Timezone", organizer: "Organizer", website: "Website", exhibitorListUrl: "Exhibitor List Link", description: "Description", aiReport: "AI Report", topics: "Topics" };
         const changed = Object.keys(labels).filter((key) => JSON.stringify((before as unknown as Record<string, unknown>)[key]) !== JSON.stringify((next as unknown as Record<string, unknown>)[key])).map((key) => labels[key]);
         const updated = await tx.exhibition.update({ where: { id }, data: {
           ...next, startDate: new Date(input.startDate), endDate: input.endDate ? new Date(input.endDate) : null, updatedById: options.actorId,
@@ -342,6 +344,32 @@ export async function setEmailFollowUpStatus(id: string, kind: "pre" | "post", s
     } });
     return mapRecord(updated as unknown as Record<string, unknown>);
   });
+}
+
+export async function setExhibitorListStatus(id: string, available: boolean, actorId: string) {
+  if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
+    try {
+      const updated = await prisma.$transaction(async (tx) => {
+        const existing = await tx.exhibition.findUniqueOrThrow({ where: { id }, select: { id: true, name: true } });
+        const record = await tx.exhibition.update({ where: { id }, data: { exhibitorList: available, updatedById: actorId }, include: recordInclude });
+        await tx.auditLog.create({ data: {
+          actorUserId: actorId, action: "UPDATE_EXHIBITION", entityType: "EXHIBITION", entityId: existing.id, entityLabel: existing.name,
+          description: `Marked exhibitor list as ${available ? "available" : "not available"}`,
+          metadata: { field: "exhibitorList", available },
+        } });
+        return record;
+      });
+      return mapRecord(updated as unknown as Record<string, unknown>);
+    } catch (error) {
+      if (!canUseDemoFallback(error)) throw error;
+      reportDemoFallback(error);
+    }
+  }
+  const item = globalStore.iecDemoExhibitions!.find((entry) => entry.id === id);
+  if (!item) throw new Error("Exhibition not found");
+  item.exhibitorList = available;
+  item.updatedAt = new Date().toISOString();
+  return item;
 }
 
 export async function toggleSaved(id: string) {

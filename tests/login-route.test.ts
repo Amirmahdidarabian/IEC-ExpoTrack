@@ -32,7 +32,7 @@ describe("login endpoint", () => {
     const response = await login(); expect(response.status).toBe(200); expect(mocks.transaction).toHaveBeenCalledOnce(); expect(mocks.createSession).toHaveBeenCalledWith("user-1", process.env.NODE_ENV === "production");
   });
   it("rejects invalid credentials", async () => {
-    mocks.verifyPassword.mockResolvedValue(false); const response = await login(); expect(response.status).toBe(401); expect(mocks.createSession).not.toHaveBeenCalled(); expect(mocks.recordRateLimitFailure).toHaveBeenCalledOnce();
+    mocks.verifyPassword.mockResolvedValue(false); const response = await login(); expect(response.status).toBe(401); expect(mocks.createSession).not.toHaveBeenCalled(); expect(mocks.recordRateLimitFailure).toHaveBeenCalledTimes(3);
   });
   it("rejects disabled users even with a matching password", async () => {
     mocks.user = { ...mocks.user!, isActive: false }; const response = await login(); expect(response.status).toBe(401); expect(mocks.createSession).not.toHaveBeenCalled();

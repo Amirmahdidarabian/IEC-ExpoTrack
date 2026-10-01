@@ -38,6 +38,8 @@ export type Exhibition = {
   categories: TaxonomyItem[];
   topicItems: TaxonomyItem[];
   saved: boolean;
+  exhibitorList?: boolean;
+  exhibitorListUrl: string;
   preEventEmailSent?: boolean;
   preEventEmailSentAt?: string | null;
   preEventEmailSentBy?: UserReference | null;

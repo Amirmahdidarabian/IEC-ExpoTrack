@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily IEC ExpoTrack PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+RandomizedDelaySec=30m
+Persistent=true
+Unit=iec-expotrack-backup.service
+
+[Install]
+WantedBy=timers.target

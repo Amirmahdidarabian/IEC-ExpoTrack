@@ -10,7 +10,7 @@ import { Footer } from "@/components/Footer";
 import { ReviewModal } from "@/components/ReviewModal";
 
 export function blankExhibition(): ExhibitionInput {
-  return { name: "", tagline: "", industry: "", categoryIds: [], topicIds: [], eventType: "International Exhibition", country: "", countryCode: "", city: "", venue: "", address: "", startDate: "", endDate: null, timezone: "", organizer: "", website: "", description: "", aiReport: "", topics: [], sources: [] };
+  return { name: "", tagline: "", industry: "", categoryIds: [], topicIds: [], eventType: "International Exhibition", country: "", countryCode: "", city: "", venue: "", address: "", startDate: "", endDate: null, timezone: "", organizer: "", website: "", exhibitorListUrl: "", description: "", aiReport: "", topics: [], sources: [] };
 }
 
 export function HomeClient({ user }: { user: { username: string; role: string; permissions: string[] } | null }) {

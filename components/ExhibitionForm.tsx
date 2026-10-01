@@ -37,9 +37,10 @@ export function ExhibitionForm({ value, onChange, errors = {}, onSearchAi, aiSta
         <TimezoneField value={value} onChange={onChange} error={errors.timezone} />
       </div></section>
 
-      <section className="form-section organization-section"><header><Network /><span><b>Organization</b><small>Organizer and official website</small></span></header><div className="form-section-grid">
+      <section className="form-section organization-section"><header><Network /><span><b>Organization</b><small>Organizer and useful exhibition links</small></span></header><div className="form-section-grid">
         <TextField value={value} onChange={onChange} errors={errors} aiFilled={aiFilled} name="organizer" label="Organizer" placeholder="e.g. DMG Events" />
         <TextField value={value} onChange={onChange} errors={errors} aiFilled={aiFilled} name="website" label="Official website" type="url" placeholder="https://www.example.com" />
+        <TextField className="span-2" value={value} onChange={onChange} errors={errors} name="exhibitorListUrl" label="Link of Exhibitor List" type="url" placeholder="https://www.example.com/exhibitors" />
       </div></section>
 
       <section className="form-section details-section span-2"><header><Tag /><span><b>Details</b><small>Descriptions and research notes</small></span></header><div className="form-section-grid">

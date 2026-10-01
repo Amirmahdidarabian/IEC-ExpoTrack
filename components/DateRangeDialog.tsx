@@ -34,8 +34,8 @@ export function DateRangeDialog({ startDate, endDate, onApply, onClose }: { star
   return <Modal onClose={onClose} label="Select date range" className="date-range-modal">
     <header className="date-dialog-heading"><span><CalendarDays /></span><div><h2>Select Date Range</h2><p>Choose the start and end date for the exhibition.</p></div></header>
     <div className="calendar-mode" role="tablist" aria-label="Calendar system">
-      <button role="tab" aria-selected={mode === "gregorian"} className={mode === "gregorian" ? "active" : ""} onClick={() => setMode("gregorian")}><CalendarDays /> Gregorian <b dir="rtl" lang="fa">(میلادی)</b></button>
-      <button role="tab" aria-selected={mode === "persian"} className={mode === "persian" ? "active" : ""} onClick={() => setMode("persian")}><CalendarDays /> Persian <b dir="rtl" lang="fa">(شمسی)</b></button>
+      <button type="button" role="tab" aria-selected={mode === "gregorian"} className={mode === "gregorian" ? "active" : ""} onClick={() => setMode("gregorian")}><CalendarDays /> Gregorian <b dir="rtl" lang="fa">(میلادی)</b></button>
+      <button type="button" role="tab" aria-selected={mode === "persian"} className={mode === "persian" ? "active" : ""} onClick={() => setMode("persian")}><CalendarDays /> Persian <b dir="rtl" lang="fa">(شمسی)</b></button>
     </div>
     <div className={`calendar-host ${mode === "persian" ? "rtl-calendar" : ""}`}>
       <Calendar
@@ -56,6 +56,6 @@ export function DateRangeDialog({ startDate, endDate, onApply, onClose }: { star
       <div><small>End date</small>{end ? <><b>{formatEventDate(end, end, true)}</b><span dir="rtl" lang="fa">{formatPersianDate(end)}</span></> : <b>Not selected</b>}</div>
       <div className="duration"><small>Duration</small><b>{start ? `${getDurationDays(start, end)} ${getDurationDays(start, end) === 1 ? "Day" : "Days"}` : "—"}</b></div>
     </div></section>
-    <footer className="date-dialog-actions"><button className="button outline" onClick={() => setRange([])}><Trash2 /> Clear</button><span /><button className="button outline violet" onClick={onClose}>Cancel</button><button className="button primary" disabled={!start} onClick={() => onApply(start, end || null)}><Check /> Apply Dates</button></footer>
+    <footer className="date-dialog-actions"><button type="button" className="button outline" onClick={() => setRange([])}><Trash2 /> Clear</button><span /><button type="button" className="button outline violet" onClick={onClose}>Cancel</button><button type="button" className="button primary" disabled={!start} onClick={() => onApply(start, end || null)}><Check /> Apply Dates</button></footer>
   </Modal>;
 }

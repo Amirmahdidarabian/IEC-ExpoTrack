@@ -9,6 +9,8 @@ import { assertRateLimit, clearRateLimit, recordRateLimitFailure, requestIdentif
 import { errorResponse } from "@/lib/auth/errors";
 
 const LOGIN_POLICY = { limit: 5, windowMs: 15 * 60 * 1000, blockMs: 15 * 60 * 1000 };
+const LOGIN_ACCOUNT_POLICY = { limit: 15, windowMs: 15 * 60 * 1000, blockMs: 15 * 60 * 1000 };
+const LOGIN_NETWORK_POLICY = { limit: 30, windowMs: 15 * 60 * 1000, blockMs: 15 * 60 * 1000 };
 const dummyPasswordHash = hashPassword("InvalidLoginPassword2026!");
 
 export async function POST(request: NextRequest) {
@@ -17,15 +19,25 @@ export async function POST(request: NextRequest) {
     await ensureInitialAdmin();
     const input = loginSchema.parse(await request.json());
     const rateKey = requestIdentifier(request, input.username);
-    await assertRateLimit("login", rateKey);
+    const accountKey = input.username.toLowerCase();
+    const networkKey = requestIdentifier(request);
+    await Promise.all([
+      assertRateLimit("login", rateKey),
+      assertRateLimit("login-account", accountKey),
+      assertRateLimit("login-network", networkKey),
+    ]);
     const user = await prisma.user.findUnique({ where: { username: input.username }, select: { id: true, username: true, passwordHash: true, isActive: true, mustChangePassword: true } });
     const validPassword = await verifyPassword(input.password, user?.passwordHash ?? await dummyPasswordHash);
     const valid = Boolean(user?.isActive && validPassword);
     if (!valid || !user) {
-      await recordRateLimitFailure("login", rateKey, LOGIN_POLICY);
+      await Promise.all([
+        recordRateLimitFailure("login", rateKey, LOGIN_POLICY),
+        recordRateLimitFailure("login-account", accountKey, LOGIN_ACCOUNT_POLICY),
+        recordRateLimitFailure("login-network", networkKey, LOGIN_NETWORK_POLICY),
+      ]);
       return NextResponse.json({ error: "Invalid username or password." }, { status: 401 });
     }
-    await clearRateLimit("login", rateKey);
+    await Promise.all([clearRateLimit("login", rateKey), clearRateLimit("login-account", accountKey)]);
     await prisma.$transaction([
       prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }),
       prisma.auditLog.create({ data: { actorUserId: user.id, action: "LOGIN", entityType: "AUTH", entityId: user.id, entityLabel: user.username, description: `${user.username} signed in` } }),

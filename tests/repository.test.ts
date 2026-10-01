@@ -4,7 +4,7 @@ import { seedExhibitions } from "@/lib/exhibitions/seed-data";
 import type { Exhibition } from "@/lib/exhibitions/types";
 
 function event(id: string, startDate: string, endDate: string | null = startDate): Exhibition {
-  return { id, slug: id, name: id, tagline: "", industry: "Energy", eventType: "Exhibition", country: "Germany", countryCode: "DE", city: "", venue: "", address: "", startDate, endDate, timezone: "Europe/Berlin", organizer: "", website: "", description: "", aiReport: "", topics: [], categories: [], topicItems: [], saved: false, createdAt: startDate, updatedAt: startDate, sources: [] };
+  return { id, slug: id, name: id, tagline: "", industry: "Energy", eventType: "Exhibition", country: "Germany", countryCode: "DE", city: "", venue: "", address: "", startDate, endDate, timezone: "Europe/Berlin", organizer: "", website: "", exhibitorListUrl: "", description: "", aiReport: "", topics: [], categories: [], topicItems: [], saved: false, createdAt: startDate, updatedAt: startDate, sources: [] };
 }
 
 describe("exhibition queries", () => {
@@ -28,7 +28,7 @@ describe("exhibition queries", () => {
       categoryIds: source.categories.map((item) => item.id), topicIds: source.topicItems.slice(0, 1).map((item) => item.id),
       eventType: source.eventType, country: source.country, countryCode: source.countryCode, city: source.city,
       venue: "", address: "", startDate: "2028-06-01T12:00:00.000Z", endDate: null,
-      timezone: source.timezone, organizer: "", website: "", description: "", aiReport: "", topics: [], sources: [],
+      timezone: source.timezone, organizer: "", website: "", exhibitorListUrl: "", description: "", aiReport: "", topics: [], sources: [],
     }, { allowDuplicate: true });
     expect(created.countryCode).toBe("SG");
     expect(created.categories[0]?.id).toBe(source.categories[0].id);

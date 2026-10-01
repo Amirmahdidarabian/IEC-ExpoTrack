@@ -55,6 +55,8 @@ const exhibitionSchema = z.object({
   aiReport: longText,
   topics: z.array(z.string().max(200)).max(500),
   saved: z.boolean(),
+  exhibitorList: z.boolean().default(false),
+  exhibitorListUrl: httpUrl.default(""),
   preEventEmailSent: z.boolean(),
   preEventEmailSentAt: nullableDate,
   postEventEmailSent: z.boolean(),

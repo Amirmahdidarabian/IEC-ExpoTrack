@@ -22,7 +22,7 @@ function backup(): BackupDocument {
     data: {
       categories: [{ id: "cat-1", name: "Energy", normalizedName: "energy", slug: "energy", createdAt: date, updatedAt: date }],
       topics: [{ id: "topic-1", name: "Hydrogen", normalizedName: "hydrogen", slug: "hydrogen", createdAt: date, updatedAt: date }],
-      exhibitions: [{ id: "expo-1", slug: "energy-2027", name: "Energy 2027", tagline: "", industry: "Energy", eventType: "Exhibition", country: "Germany", countryCode: "DE", city: "Berlin", venue: "IEC", address: "", startDate: "2027-01-01T00:00:00.000Z", endDate: null, timezone: "Europe/Berlin", organizer: "IEC", website: "https://example.com", description: "Description", aiReport: "Report", topics: ["Hydrogen"], saved: false, preEventEmailSent: true, preEventEmailSentAt: date, postEventEmailSent: false, postEventEmailSentAt: null, createdAt: date, updatedAt: date, categoryIds: ["cat-1"], topicIds: ["topic-1"], sources: [{ id: "source-1", label: "Official", url: "https://example.com", lastChecked: date, priority: 1 }] }],
+      exhibitions: [{ id: "expo-1", slug: "energy-2027", name: "Energy 2027", tagline: "", industry: "Energy", eventType: "Exhibition", country: "Germany", countryCode: "DE", city: "Berlin", venue: "IEC", address: "", startDate: "2027-01-01T00:00:00.000Z", endDate: null, timezone: "Europe/Berlin", organizer: "IEC", website: "https://example.com", exhibitorListUrl: "https://example.com/exhibitors", description: "Description", aiReport: "Report", topics: ["Hydrogen"], saved: false, exhibitorList: true, preEventEmailSent: true, preEventEmailSentAt: date, postEventEmailSent: false, postEventEmailSentAt: null, createdAt: date, updatedAt: date, categoryIds: ["cat-1"], topicIds: ["topic-1"], sources: [{ id: "source-1", label: "Official", url: "https://example.com", lastChecked: date, priority: 1 }] }],
     },
   };
 }
@@ -60,7 +60,7 @@ describe("export and import services", () => {
     mocks.tx.topic.findMany.mockResolvedValueOnce([{ id: "topic-1", name: "Hydrogen", normalizedName: "hydrogen", slug: "hydrogen", createdAt: new Date(date), updatedAt: new Date(date) }]);
     mocks.tx.exhibition.findMany.mockResolvedValueOnce([{ ...backup().data.exhibitions[0], startDate: new Date("2027-01-01"), endDate: null, preEventEmailSentAt: new Date(date), postEventEmailSentAt: null, createdAt: new Date(date), updatedAt: new Date(date), topics: ["Hydrogen"], categories: [{ categoryId: "cat-1" }], topicLinks: [{ topicId: "topic-1" }], sources: [{ id: "source-1", label: "Official", url: "https://example.com", lastChecked: new Date(date), priority: 1 }] }]);
     const value = await createExport("admin-1"); const serialized = JSON.stringify(value);
-    expect(value).toMatchObject({ format: BACKUP_FORMAT, version: 1, data: { exhibitions: [{ preEventEmailSent: true, categoryIds: ["cat-1"], topicIds: ["topic-1"] }] } });
+    expect(value).toMatchObject({ format: BACKUP_FORMAT, version: 1, data: { exhibitions: [{ exhibitorList: true, exhibitorListUrl: "https://example.com/exhibitors", preEventEmailSent: true, categoryIds: ["cat-1"], topicIds: ["topic-1"] }] } });
     expect(serialized).not.toMatch(/passwordHash|passwords|sessions|tokenHash|tokens|AUTH_SECRET|OPENAI_API_KEY|DATABASE_URL|POSTGRES_PASSWORD/);
     expect(mocks.tx.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ actorUserId: "admin-1", action: "EXPORT_DATA" }) });
   });

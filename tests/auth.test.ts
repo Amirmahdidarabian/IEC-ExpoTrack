@@ -35,8 +35,12 @@ describe("authorization", () => {
 
 describe("account validation", () => {
   it("rejects unsafe usernames and mismatched password confirmation", () => {
-    expect(usernameSchema.safeParse("bad user").success).toBe(false);
+    expect(usernameSchema.safeParse("bad/user").success).toBe(false);
     expect(ownAccountSchema.safeParse({ currentPassword: "OldPassword2026!", newPassword: "NewPassword2026!", confirmPassword: "Different2026!" }).success).toBe(false);
+  });
+  it("accepts and normalizes multi-word usernames", () => {
+    expect(usernameSchema.parse("  general   manager  ")).toBe("general manager");
+    expect(createUserSchema.parse({ username: "general manager", temporaryPassword: "Temporary2026!", role: "USER" }).username).toBe("general manager");
   });
   it("validates user creation and relational permission values", () => {
     expect(createUserSchema.safeParse({ username: "sara", temporaryPassword: "Temporary2026!", role: "USER", isActive: true, permissions: ["VIEW_EXHIBITIONS", "UPDATE_EXHIBITIONS"] }).success).toBe(true);

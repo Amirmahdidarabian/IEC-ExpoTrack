@@ -25,6 +25,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+# This server-only package loads its country/city JSON files dynamically, so
+# Next.js file tracing cannot discover the data directory on its own.
+COPY --from=builder /app/node_modules/@countrystatecity/countries ./node_modules/@countrystatecity/countries
 COPY --from=builder /app/scripts/runtime-env.mjs ./scripts/runtime-env.mjs
 COPY --from=builder /app/scripts/docker-start.mjs ./scripts/docker-start.mjs
 USER nextjs

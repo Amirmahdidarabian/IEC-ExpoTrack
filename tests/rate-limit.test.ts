@@ -1,16 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
-  const securityRateLimit = { findUnique: vi.fn(), upsert: vi.fn(), delete: vi.fn() };
+  const securityRateLimit = { findUnique: vi.fn(), upsert: vi.fn(), delete: vi.fn(), deleteMany: vi.fn() };
   return { securityRateLimit, transaction: vi.fn(async (callback: (tx: { securityRateLimit: typeof securityRateLimit }) => unknown) => callback({ securityRateLimit })) };
 });
 
 vi.mock("@/lib/prisma", () => ({ prisma: { securityRateLimit: mocks.securityRateLimit, $transaction: mocks.transaction } }));
 
-import { assertRateLimit, clearRateLimit, recordRateLimitFailure } from "@/lib/security/rate-limit";
+import { assertRateLimit, clearRateLimit, recordRateLimitFailure, requestIdentifier } from "@/lib/security/rate-limit";
 
 describe("persistent rate limiting", () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.securityRateLimit.findUnique.mockResolvedValue(null); mocks.securityRateLimit.upsert.mockResolvedValue({}); mocks.securityRateLimit.delete.mockResolvedValue({}); });
+  beforeEach(() => { vi.clearAllMocks(); mocks.securityRateLimit.findUnique.mockResolvedValue(null); mocks.securityRateLimit.upsert.mockResolvedValue({}); mocks.securityRateLimit.delete.mockResolvedValue({}); mocks.securityRateLimit.deleteMany.mockResolvedValue({ count: 0 }); });
+
+  it("prefers the proxy-overwritten real IP over a spoofed forwarding chain", () => {
+    const request = new Request("https://iec.example", { headers: { "x-real-ip": "198.51.100.8", "x-forwarded-for": "203.0.113.99" } });
+    expect(requestIdentifier(request, "Sara")).toBe("198.51.100.8:sara");
+  });
 
   it("stores only a one-way identifier and starts a temporary bucket", async () => {
     await recordRateLimitFailure("login", "203.0.113.4:sara", { limit: 5, windowMs: 60_000 });

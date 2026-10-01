@@ -1,0 +1,16 @@
+[Unit]
+Description=IEC ExpoTrack PostgreSQL backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/sbin/iec-expotrack-backup
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/iec-expotrack
+Nice=10

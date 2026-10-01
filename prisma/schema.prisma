@@ -145,6 +145,8 @@ model Exhibition {
   aiReport               String               @default("")
   topics                 Json
   saved                  Boolean              @default(false)
+  exhibitorList          Boolean              @default(false)
+  exhibitorListUrl       String               @default("")
   preEventEmailSent      Boolean              @default(false)
   preEventEmailSentAt    DateTime?
   preEventEmailSentById  String?

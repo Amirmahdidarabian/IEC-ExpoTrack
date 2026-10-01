@@ -33,4 +33,8 @@ describe("repository security automation", () => {
     expect(nginx).toContain("proxy_set_header X-Forwarded-Host $host;");
     expect(nginx).not.toContain("$proxy_add_x_forwarded_for");
   });
+  it("ships the dynamically loaded country and city data in the production image", () => {
+    const dockerfile = readFileSync("Dockerfile", "utf8");
+    expect(dockerfile).toContain("COPY --from=builder /app/node_modules/@countrystatecity/countries ./node_modules/@countrystatecity/countries");
+  });
 });

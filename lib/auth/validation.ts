@@ -1,7 +1,12 @@
 import { Permission, UserRole } from "@prisma/client";
 import { z } from "zod";
 
-export const usernameSchema = z.string().trim().min(3, "Username must contain at least 3 characters.").max(50).regex(/^[a-zA-Z0-9._-]+$/, "Use letters, numbers, dots, underscores or hyphens only.");
+export const usernameSchema = z.string()
+  .trim()
+  .min(3, "Username must contain at least 3 characters.")
+  .max(50)
+  .regex(/^[a-zA-Z0-9._-]+(?: +[a-zA-Z0-9._-]+)*$/, "Use letters, numbers, spaces, dots, underscores or hyphens only.")
+  .transform((value) => value.replace(/ +/g, " "));
 export const passwordSchema = z.string().min(12, "Password must contain at least 12 characters.").max(128).refine((value) => /[A-Z]/.test(value) && /[a-z]/.test(value) && /\d/.test(value), "Password must include uppercase, lowercase and a number.");
 
 export const loginSchema = z.object({ username: usernameSchema, password: z.string().min(1).max(128) });

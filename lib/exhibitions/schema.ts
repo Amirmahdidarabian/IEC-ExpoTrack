@@ -21,6 +21,7 @@ const exhibitionBaseSchema = z.object({
   timezone: requiredTimezone,
   organizer: z.string().trim().default(""),
   website: optionalUrl.default(""),
+  exhibitorListUrl: optionalUrl.default(""),
   description: z.string().trim().default(""),
   aiReport: z.string().trim().default(""),
   topics: z.array(z.string().trim()).default([]),

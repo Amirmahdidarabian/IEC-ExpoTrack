@@ -6,6 +6,7 @@ const httpsEnabled = process.env.HTTPS_ENABLED === "true";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  poweredByHeader: false,
   agentRules: false,
   serverExternalPackages: ["@countrystatecity/countries"],
   async headers() {

@@ -33,6 +33,11 @@ services:
       args:
         HTTPS_ENABLED: "true"
     restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     ports:
       - "127.0.0.1:3000:3000"
     environment:
@@ -44,8 +49,6 @@ services:
       EXHIBITION_DATA_MODE: database
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
-      INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-}
-      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
     depends_on:
       db:
         condition: service_healthy

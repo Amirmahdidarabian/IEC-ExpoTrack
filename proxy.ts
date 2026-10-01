@@ -12,7 +12,6 @@ export function proxy(request: NextRequest) {
     login.searchParams.set("next", `${pathname}${search}`);
     return NextResponse.redirect(login);
   }
-  if (pathname === "/login" && request.cookies.has(SESSION_COOKIE)) return NextResponse.redirect(new URL("/exhibitions", request.url));
   return NextResponse.next();
 }
 

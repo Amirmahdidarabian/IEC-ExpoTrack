@@ -4,6 +4,7 @@
 .next/
 node_modules/
 coverage/
+backups/
 npm-debug.log*
 *.rar
 *.tsbuildinfo
