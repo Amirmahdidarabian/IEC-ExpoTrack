@@ -8,7 +8,7 @@
     "start": "node scripts/start.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --pool=threads --poolOptions.threads.singleThread",
+    "test": "vitest run --pool=threads --maxWorkers=1 --no-file-parallelism",
     "security:scan": "node scripts/secret-scan.mjs",
     "env:check": "node scripts/validate-production-env.mjs",
     "prod:check": "node scripts/prod-check.mjs",
@@ -26,7 +26,7 @@
     "date-fns": "^4.1.0",
     "gsap": "^3.15.0",
     "lucide-react": "^0.544.0",
-    "next": "^16.0.0",
+    "next": "^16.3.8",
     "react": "^19.2.0",
     "react-date-object": "^2.1.9",
     "react-dom": "^19.2.0",
@@ -42,7 +42,7 @@
     "prisma": "^6.16.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "^5.0.3"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.2"
