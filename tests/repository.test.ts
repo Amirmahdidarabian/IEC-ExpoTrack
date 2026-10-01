@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createExhibition, deleteExhibition, listExhibitions, sortItems } from "@/lib/exhibitions/repository";
+import { createExhibition, deleteExhibition, listExhibitions, listHomeExhibitions, sortItems } from "@/lib/exhibitions/repository";
 import { seedExhibitions } from "@/lib/exhibitions/seed-data";
 import type { Exhibition } from "@/lib/exhibitions/types";
 
@@ -8,6 +8,13 @@ function event(id: string, startDate: string, endDate: string | null = startDate
 }
 
 describe("exhibition queries", () => {
+  it("provides the full upcoming catalog to the home deck, not only five cards", async () => {
+    const items = await listHomeExhibitions(new Date("2026-10-01T12:00:00Z"));
+    expect(items.length).toBeGreaterThan(5);
+    expect(items.map((item) => new Date(item.startDate).getTime())).toEqual(
+      [...items].map((item) => new Date(item.startDate).getTime()).sort((a, b) => a - b),
+    );
+  });
   it("sorts upcoming exhibitions nearest first by start date", async () => {
     const result = await listExhibitions({ sort: "nearest", pageSize: 50 });
     const upcoming = result.items.filter((item) => new Date(item.startDate) > new Date()).map((item) => new Date(item.startDate).getTime());

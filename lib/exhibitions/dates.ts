@@ -85,6 +85,21 @@ export function getDurationDays(startValue: string | Date, endValue?: string | D
   return differenceInCalendarDays(end, start) + 1;
 }
 
+/** Calendar-day countdown in the exhibition's timezone, independent of local browser time. */
+export function daysUntilStart(startValue: string | Date, timezone = "UTC", now = new Date()) {
+  const start = safeDisplayDate(startValue);
+  if (!start) return 0;
+  let today: string;
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    today = `${values.year}-${values.month}-${values.day}`;
+  } catch {
+    today = now.toISOString().slice(0, 10);
+  }
+  return Math.max(0, differenceInCalendarDays(start, safeDisplayDate(today)!));
+}
+
 export function formatEventDate(startValue: string | Date, endValue?: string | Date | null, long = false) {
   const start = safeDisplayDate(startValue);
   const end = safeDisplayDate(endValue ?? startValue);

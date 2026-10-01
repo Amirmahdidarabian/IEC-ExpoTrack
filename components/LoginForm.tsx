@@ -15,7 +15,7 @@ export function LoginForm() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Sign in failed.");
       const requested = params.get("next");
-      const safeNext = requested?.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\") ? requested : "/exhibitions";
+      const safeNext = requested?.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\") ? requested : "/";
       const next = payload.mustChangePassword ? "/settings/account?required=1" : safeNext;
       router.replace(next); router.refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Sign in failed."); }

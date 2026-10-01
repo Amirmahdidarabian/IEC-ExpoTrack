@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import DateObject from "react-date-object";
 import persian from "react-date-object/calendars/persian";
 import persian_fa from "react-date-object/locales/persian_fa";
-import { dateObjectToCanonical, formatEventDate, formatPersianDate, formatPersianEventDate, getDurationDays, getEventStatus, normalizeDateOnly } from "@/lib/exhibitions/dates";
+import { dateObjectToCanonical, daysUntilStart, formatEventDate, formatPersianDate, formatPersianEventDate, getDurationDays, getEventStatus, normalizeDateOnly } from "@/lib/exhibitions/dates";
 
 describe("exhibition dates", () => {
   it("reports a future exhibition with a live countdown", () => {
@@ -26,4 +26,9 @@ describe("exhibition dates", () => {
   });
   it("keeps the calendar day stable when normalizing date-only input", () => expect(normalizeDateOnly("2026-09-15")).toBe("2026-09-15T12:00:00.000Z"));
   it("supports a same-day exhibition", () => expect(getDurationDays("2026-09-15", "2026-09-15")).toBe(1));
+  it("counts calendar days in the exhibition timezone", () => {
+    const now = new Date("2026-10-01T21:30:00.000Z");
+    expect(daysUntilStart("2026-10-02T12:00:00.000Z", "Asia/Dubai", now)).toBe(0);
+    expect(daysUntilStart("2026-10-03T12:00:00.000Z", "Asia/Dubai", now)).toBe(1);
+  });
 });

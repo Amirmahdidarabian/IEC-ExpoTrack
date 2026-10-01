@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-export function Brand({ compact = false }: { compact?: boolean }) {
+export function Brand({ compact = false, home = false }: { compact?: boolean; home?: boolean }) {
   return (
-    <Link href="/" className="brand" aria-label="International Energy Club home">
+    <Link href="/" className={`brand${home ? " home-brand-lockup" : ""}`} aria-label={home ? "Global Energy Exhibition Database home" : "International Energy Club home"}>
       <svg className="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
         <defs>
           <filter id="iec-remove-white" colorInterpolationFilters="sRGB">
@@ -11,7 +11,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
         </defs>
         <image href="/iec-logo.png" width="64" height="64" preserveAspectRatio="xMidYMid meet" filter="url(#iec-remove-white)" />
       </svg>
-      {!compact && <span><strong>International</strong><strong>Energy Club</strong></span>}
+      {!compact && <span>{home ? <><strong>Global Energy</strong><strong>Exhibition Database</strong></> : <><strong>International</strong><strong>Energy Club</strong></>}</span>}
     </Link>
   );
 }

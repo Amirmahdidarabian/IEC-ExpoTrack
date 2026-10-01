@@ -183,6 +183,40 @@ export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<
   };
 }
 
+/** The home deck uses the same catalog as the exhibition listing, ordered by start date. */
+export async function listHomeExhibitions(now = new Date()): Promise<Exhibition[]> {
+  if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
+    try {
+      // Date-only records are stored at noon UTC; include the preceding day so
+      // events in timezones ahead of UTC are not discarded before status checks.
+      const threshold = new Date(now);
+      threshold.setUTCDate(threshold.getUTCDate() - 1);
+      const selected: Exhibition[] = [];
+      let skip = 0;
+      while (true) {
+        const records = await prisma.exhibition.findMany({
+          where: { OR: [{ endDate: { gte: threshold } }, { endDate: null, startDate: { gte: threshold } }] },
+          orderBy: [{ startDate: "asc" }, { id: "asc" }],
+          skip,
+          take: 25,
+          include: recordInclude,
+        });
+        selected.push(...records.map((record) => mapRecord(record as unknown as Record<string, unknown>))
+          .filter((item) => getEventStatus(item.startDate, item.endDate, now, item.timezone).state !== "past"));
+        skip += records.length;
+        if (records.length < 25) break;
+      }
+      return selected;
+    } catch (error) {
+      if (!canUseDemoFallback(error)) throw error;
+      reportDemoFallback(error);
+    }
+  }
+  return globalStore.iecDemoExhibitions!
+    .filter((item) => getEventStatus(item.startDate, item.endDate, now, item.timezone).state !== "past")
+    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime() || a.name.localeCompare(b.name));
+}
+
 export async function getExhibition(identifier: string) {
   if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
     try {
