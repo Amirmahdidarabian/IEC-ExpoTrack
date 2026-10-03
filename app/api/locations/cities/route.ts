@@ -7,7 +7,7 @@ import { errorResponse } from "@/lib/auth/errors";
 export async function GET(request: NextRequest) {
   try { await requireAuthenticatedUser({ permission: Permission.VIEW_EXHIBITIONS }); } catch (error) { return errorResponse(error); }
   const country = request.nextUrl.searchParams.get("country") ?? "";
-  if (!/^[A-Z]{2}$/.test(country)) return NextResponse.json({ error: "A valid country code is required." }, { status: 400 });
+  if (!/^[A-Z]{2,3}$/.test(country)) return NextResponse.json({ error: "A valid country code is required." }, { status: 400 });
   try { return NextResponse.json(await searchCities(country, request.nextUrl.searchParams.get("q") ?? "")); }
   catch (error) { return errorResponse(error, "Unable to load cities."); }
 }

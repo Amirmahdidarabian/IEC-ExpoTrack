@@ -12,7 +12,7 @@ const exhibitionBaseSchema = z.object({
   categoryIds: z.array(z.string().trim().min(1)).min(1, "Select at least one category"),
   eventType: z.string().trim().default("International Exhibition"),
   country: z.string().trim().min(2, "Country is required"),
-  countryCode: z.string().trim().regex(/^[A-Z]{2}$/, "Select a country from the list"),
+  countryCode: z.string().trim().regex(/^[A-Z]{2,3}$/, "Select a country from the list"),
   city: z.string().trim().default(""),
   venue: z.string().trim().default(""),
   address: z.string().trim().default(""),

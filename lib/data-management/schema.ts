@@ -40,7 +40,7 @@ const exhibitionSchema = z.object({
   industry: shortText,
   eventType: z.string().max(200),
   country: z.string().trim().min(2).max(120),
-  countryCode: z.string().regex(/^[A-Z]{2}$/).nullable(),
+  countryCode: z.string().regex(/^[A-Z]{2,3}$/).nullable(),
   city: z.string().max(160),
   venue: z.string().max(500),
   address: z.string().max(1_000),
