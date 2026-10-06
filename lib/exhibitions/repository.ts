@@ -359,6 +359,24 @@ export async function deleteExhibition(id: string, actorId?: string) {
   globalStore.iecDemoExhibitions = globalStore.iecDemoExhibitions!.filter((item) => item.id !== id);
 }
 
+export async function deleteExhibitions(ids: string[], actorId?: string) {
+  const uniqueIds = [...new Set(ids)];
+  if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const items = await tx.exhibition.findMany({ where: { id: { in: uniqueIds } }, select: { id: true, name: true } });
+        if (items.length !== uniqueIds.length) throw Object.assign(new Error("One or more exhibitions were not found."), { code: "P2025" });
+        await tx.exhibition.deleteMany({ where: { id: { in: uniqueIds } } });
+        if (actorId) await tx.auditLog.createMany({ data: items.map((item) => ({ actorUserId: actorId, action: "DELETE_EXHIBITION" as const, entityType: "EXHIBITION" as const, entityId: item.id, entityLabel: item.name, description: `Deleted exhibition ${item.name}` })) });
+        return items.length;
+      });
+    } catch (error) { if (!canUseDemoFallback(error)) throw error; reportDemoFallback(error); }
+  }
+  const existingIds = new Set(globalStore.iecDemoExhibitions!.filter((item) => uniqueIds.includes(item.id)).map((item) => item.id));
+  globalStore.iecDemoExhibitions = globalStore.iecDemoExhibitions!.filter((item) => !existingIds.has(item.id));
+  return existingIds.size;
+}
+
 export async function setEmailFollowUpStatus(id: string, kind: "pre" | "post", sent: boolean, actorId: string) {
   const now = new Date();
   const isPre = kind === "pre";

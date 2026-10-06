@@ -4,6 +4,8 @@ export class HttpError extends Error {
 
 export function errorResponse(error: unknown, fallback = "Request failed") {
   if (error instanceof HttpError) return Response.json({ error: error.message }, { status: error.status });
+  if (error && typeof error === "object" && "code" in error && error.code === "P2002") return Response.json({ error: "This relationship or unique value already exists." }, { status: 409 });
+  if (error && typeof error === "object" && "code" in error && error.code === "P2025") return Response.json({ error: "The requested record was not found." }, { status: 404 });
   if (error && typeof error === "object" && "name" in error && error.name === "ZodError") {
     const issues = "issues" in error && Array.isArray(error.issues) ? error.issues.slice(0, 8).map((issue: { path?: PropertyKey[]; message?: string }) => `${issue.path?.join(".") || "request"}: ${issue.message || "Invalid value"}`) : [];
     return Response.json({ error: issues.length ? issues.join("; ") : "Invalid request." }, { status: 400 });

@@ -1,0 +1,6 @@
+import { Permission } from "@prisma/client"; import { NextRequest, NextResponse } from "next/server";
+import { errorResponse } from "@/lib/auth/errors"; import { requireSameOrigin } from "@/lib/auth/request-security"; import { requireAuthenticatedUser } from "@/lib/auth/session"; import { deleteNote, updateNote } from "@/lib/companies/repository";
+type Context = { params: Promise<{ id: string; noteId: string }> };
+export async function PATCH(request: NextRequest, context: Context) { try { requireSameOrigin(request); const actor = await requireAuthenticatedUser({ permission: Permission.UPDATE_COMPANIES }); const p = await context.params; return NextResponse.json(await updateNote(p.id, p.noteId, await request.json(), actor.id)); } catch (error) { return errorResponse(error, "Unable to update note"); } }
+export async function DELETE(request: NextRequest, context: Context) { try { requireSameOrigin(request); const actor = await requireAuthenticatedUser({ permission: Permission.UPDATE_COMPANIES }); const p = await context.params; await deleteNote(p.id, p.noteId, actor.id); return NextResponse.json({ ok: true }); } catch (error) { return errorResponse(error, "Unable to delete note"); } }
+

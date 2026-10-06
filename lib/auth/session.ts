@@ -70,6 +70,12 @@ export async function requireAuthenticatedUser(options: { permission?: Permissio
   return user;
 }
 
+export async function requireAnyPermission(permissions: readonly Permission[]) {
+  const user = await requireAuthenticatedUser();
+  if (!permissions.some((permission) => hasPermission(user, permission))) throw new HttpError("You do not have permission to perform this action.", 403);
+  return user;
+}
+
 export async function requireAdminUser() {
   const user = await requireAuthenticatedUser();
   if (user.role !== UserRole.ADMIN) throw new HttpError("Administrator access required.", 403);

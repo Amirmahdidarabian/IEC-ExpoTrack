@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Bookmark, CalendarDays, ChevronDown, Home, LogOut, Menu, Plus, Search, Settings, ShieldCheck, UserRound, X } from "lucide-react";
+import { Bell, Bookmark, Building2, CalendarDays, ChevronDown, Home, LogOut, Menu, Plus, Search, Settings, ShieldCheck, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -8,13 +8,10 @@ import { Brand } from "@/components/Brand";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UpcomingExhibitionDeck } from "@/components/home/UpcomingExhibitionDeck";
 import { ReviewModal } from "@/components/ReviewModal";
-import type { Exhibition, ExhibitionInput } from "@/lib/exhibitions/types";
+import { blankExhibition } from "@/lib/exhibitions/defaults";
+import type { Exhibition } from "@/lib/exhibitions/types";
 
 type HomeUser = { username: string; role: string; permissions: string[] };
-
-export function blankExhibition(): ExhibitionInput {
-  return { name: "", tagline: "", industry: "", categoryIds: [], topicIds: [], eventType: "International Exhibition", country: "", countryCode: "", city: "", venue: "", address: "", startDate: "", endDate: null, timezone: "", organizer: "", website: "", exhibitorListUrl: "", description: "", aiReport: "", topics: [], sources: [] };
-}
 
 function PublicHome() {
   return <main className="home-page public-home">
@@ -49,6 +46,7 @@ function DashboardHome({ user, exhibitions, asOf, canView, onAdd }: { user: Home
   const nav = [
     { href: "/", label: "Home", icon: Home },
     { href: "/exhibitions", label: "Exhibitions", icon: CalendarDays },
+    { href: "/companies", label: "Companies", icon: Building2 },
     { href: "/saved", label: "Saved", icon: Bookmark },
   ];
 

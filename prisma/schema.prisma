@@ -20,6 +20,11 @@ enum Permission {
   VIEW_ADMIN_DASHBOARD
   MANAGE_USERS
   VIEW_AUDIT_LOGS
+  VIEW_COMPANIES
+  CREATE_COMPANIES
+  UPDATE_COMPANIES
+  DELETE_COMPANIES
+  IMPORT_COMPANIES
 }
 
 enum AuditAction {
@@ -42,6 +47,22 @@ enum AuditAction {
   CHANGE_USERNAME
   EXPORT_DATA
   IMPORT_DATA
+  COMPANY_CREATED
+  COMPANY_UPDATED
+  COMPANY_DELETED
+  CONTACT_CREATED
+  CONTACT_UPDATED
+  CONTACT_DELETED
+  COMPANY_EXHIBITION_LINKED
+  COMPANY_EXHIBITION_UNLINKED
+  COMPANY_CATEGORY_UPDATED
+  COMPANY_TOPIC_UPDATED
+  COMPANY_NOTE_CREATED
+  COMPANY_NOTE_UPDATED
+  COMPANY_NOTE_DELETED
+  COMPANY_IMPORT_STARTED
+  COMPANY_IMPORT_COMPLETED
+  COMPANY_IMPORT_FAILED
 }
 
 enum AuditEntityType {
@@ -49,6 +70,36 @@ enum AuditEntityType {
   USER
   AUTH
   SYSTEM
+  COMPANY
+  CONTACT
+  COMPANY_IMPORT
+}
+
+enum CompanySocialPlatform {
+  LINKEDIN
+  X
+  INSTAGRAM
+  YOUTUBE
+  FACEBOOK
+  TELEGRAM
+  OTHER
+}
+
+enum CompanyExhibitionRole {
+  EXHIBITOR
+  SPONSOR
+  SPEAKER
+  PARTNER
+  VISITOR
+  OTHER
+  UNKNOWN
+}
+
+enum CompanyImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
 
 model User {
@@ -68,6 +119,9 @@ model User {
   updatedExhibitions   Exhibition[]     @relation("ExhibitionUpdatedBy")
   preEmailExhibitions  Exhibition[]     @relation("ExhibitionPreEmailBy")
   postEmailExhibitions Exhibition[]     @relation("ExhibitionPostEmailBy")
+  createdCompanies     Company[]        @relation("CompanyCreatedBy")
+  companyNotes         CompanyNote[]    @relation("CompanyNoteAuthor")
+  companyImportJobs    CompanyImportJob[] @relation("CompanyImportStartedBy")
 
   @@index([isActive])
 }
@@ -160,6 +214,7 @@ model Exhibition {
   sources                Source[]
   categories             ExhibitionCategory[]
   topicLinks             ExhibitionTopic[]
+  companies              CompanyExhibition[]
   createdBy              User?                @relation("ExhibitionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy              User?                @relation("ExhibitionUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   preEventEmailSentBy    User?                @relation("ExhibitionPreEmailBy", fields: [preEventEmailSentById], references: [id], onDelete: SetNull)
@@ -182,6 +237,7 @@ model IndustryCategory {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   exhibitions    ExhibitionCategory[]
+  companies      CompanyCategory[]
 }
 
 model Topic {
@@ -192,6 +248,7 @@ model Topic {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   exhibitions    ExhibitionTopic[]
+  companies      CompanyTopic[]
 }
 
 model ExhibitionCategory {
@@ -224,4 +281,144 @@ model Source {
   exhibition   Exhibition @relation(fields: [exhibitionId], references: [id], onDelete: Cascade)
 
   @@index([exhibitionId])
+}
+
+model Company {
+  id             String               @id @default(cuid())
+  name           String
+  normalizedName String
+  website        String?
+  domain         String?
+  countryCode    String?
+  country        String?
+  description    String?
+  priorityScore  Int?
+  saved          Boolean              @default(false)
+  createdById    String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  createdBy      User?                @relation("CompanyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  contacts       CompanyContact[]
+  socialLinks    CompanySocialLink[]
+  categories     CompanyCategory[]
+  topics         CompanyTopic[]
+  exhibitions    CompanyExhibition[]
+  notes          CompanyNote[]
+
+  @@index([name])
+  @@index([normalizedName])
+  @@index([domain])
+  @@index([countryCode])
+  @@index([priorityScore])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([createdById])
+}
+
+model CompanyContact {
+  id          String   @id @default(cuid())
+  companyId   String
+  firstName   String?
+  lastName    String?
+  jobTitle    String?
+  department  String?
+  email       String?
+  phone       String?
+  whatsapp    String?
+  linkedinUrl String?
+  notes       String?
+  isPrimary   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([email])
+  @@index([lastName, firstName])
+}
+
+model CompanySocialLink {
+  id        String                @id @default(cuid())
+  companyId String
+  platform  CompanySocialPlatform
+  url       String
+  company   Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, platform, url])
+  @@index([companyId])
+}
+
+model CompanyCategory {
+  companyId  String
+  categoryId String
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category   IndustryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@id([companyId, categoryId])
+  @@index([categoryId])
+}
+
+model CompanyTopic {
+  companyId String
+  topicId   String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  topic     Topic   @relation(fields: [topicId], references: [id], onDelete: Restrict)
+
+  @@id([companyId, topicId])
+  @@index([topicId])
+}
+
+model CompanyExhibition {
+  id           String                @id @default(cuid())
+  companyId    String
+  exhibitionId String
+  role         CompanyExhibitionRole @default(UNKNOWN)
+  hall         String?
+  booth        String?
+  sourceUrl    String?
+  notes        String?
+  createdAt    DateTime              @default(now())
+  company      Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  exhibition   Exhibition            @relation(fields: [exhibitionId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, exhibitionId])
+  @@index([exhibitionId])
+  @@index([companyId, createdAt])
+}
+
+model CompanyNote {
+  id          String   @id @default(cuid())
+  companyId   String
+  body        String
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy   User?    @relation("CompanyNoteAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([createdById])
+}
+
+model CompanyImportJob {
+  id               String              @id @default(cuid())
+  fileName         String
+  startedById      String?
+  startedAt        DateTime            @default(now())
+  completedAt      DateTime?
+  status           CompanyImportStatus @default(PENDING)
+  totalRows        Int                 @default(0)
+  validRows        Int                 @default(0)
+  createdCompanies Int                 @default(0)
+  updatedCompanies Int                 @default(0)
+  createdContacts  Int                 @default(0)
+  duplicates       Int                 @default(0)
+  failedRows       Int                 @default(0)
+  errorSummary     Json?
+  startedBy        User?               @relation("CompanyImportStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
+
+  @@index([startedAt])
+  @@index([status])
+  @@index([startedById])
 }

@@ -27,4 +27,9 @@ export const permissionLabels: Record<Permission, string> = {
   VIEW_ADMIN_DASHBOARD: "View administration dashboard",
   MANAGE_USERS: "Manage users",
   VIEW_AUDIT_LOGS: "View activity logs",
+  VIEW_COMPANIES: "View companies",
+  CREATE_COMPANIES: "Create companies",
+  UPDATE_COMPANIES: "Update companies, contacts, links, and notes",
+  DELETE_COMPANIES: "Delete companies",
+  IMPORT_COMPANIES: "Import companies from Excel",
 };

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteTaxonomy, DuplicateTaxonomyError, renameTaxonomy, TaxonomyInUseError, type TaxonomyKind } from "@/lib/exhibitions/taxonomy";
 import { Permission } from "@prisma/client";
-import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { requireAnyPermission } from "@/lib/auth/session";
 import { errorResponse } from "@/lib/auth/errors";
 import { requireSameOrigin } from "@/lib/auth/request-security";
 
@@ -10,7 +10,7 @@ function parseKind(value: string): TaxonomyKind | null {
 }
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ kind: string; id: string }> }) {
-  try { requireSameOrigin(request); await requireAuthenticatedUser({ permission: Permission.UPDATE_EXHIBITIONS }); } catch (error) { return errorResponse(error); }
+  try { requireSameOrigin(request); await requireAnyPermission([Permission.UPDATE_EXHIBITIONS, Permission.UPDATE_COMPANIES]); } catch (error) { return errorResponse(error); }
   const { kind: value, id } = await context.params;
   const kind = parseKind(value);
   if (!kind) return NextResponse.json({ error: "Unknown taxonomy." }, { status: 404 });
@@ -24,7 +24,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ k
 }
 
 export async function DELETE(request: NextRequest, context: { params: Promise<{ kind: string; id: string }> }) {
-  try { requireSameOrigin(request); await requireAuthenticatedUser({ permission: Permission.UPDATE_EXHIBITIONS }); } catch (error) { return errorResponse(error); }
+  try { requireSameOrigin(request); await requireAnyPermission([Permission.UPDATE_EXHIBITIONS, Permission.UPDATE_COMPANIES]); } catch (error) { return errorResponse(error); }
   const { kind: value, id } = await context.params;
   const kind = parseKind(value);
   if (!kind) return NextResponse.json({ error: "Unknown taxonomy." }, { status: 404 });

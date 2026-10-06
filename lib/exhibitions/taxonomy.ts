@@ -49,11 +49,11 @@ export class DuplicateTaxonomyError extends Error {
 
 export class TaxonomyInUseError extends Error {
   code = "TAXONOMY_IN_USE" as const;
-  constructor(public usageCount: number) { super(`This item is used by ${usageCount} exhibition${usageCount === 1 ? "" : "s"} and cannot be deleted.`); }
+  constructor(public usageCount: number) { super(`This item is used by ${usageCount} linked record${usageCount === 1 ? "" : "s"} and cannot be deleted.`); }
 }
 
-function mapDatabaseItem(item: { id: string; name: string; slug: string; _count?: { exhibitions: number } }): TaxonomyItem {
-  return { id: item.id, name: item.name, slug: item.slug, usageCount: item._count?.exhibitions ?? 0 };
+function mapDatabaseItem(item: { id: string; name: string; slug: string; _count?: { exhibitions: number; companies?: number } }): TaxonomyItem {
+  return { id: item.id, name: item.name, slug: item.slug, usageCount: (item._count?.exhibitions ?? 0) + (item._count?.companies ?? 0) };
 }
 
 function demoUsage(kind: TaxonomyKind, id: string) {
@@ -64,8 +64,8 @@ export async function listTaxonomies(kind: TaxonomyKind): Promise<TaxonomyItem[]
   if (useDatabase && Date.now() >= (globalStore.iecTaxonomyDatabaseRetryAt ?? 0)) {
     try {
       const records = kind === "categories"
-        ? await prisma.industryCategory.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { exhibitions: true } } } })
-        : await prisma.topic.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { exhibitions: true } } } });
+        ? await prisma.industryCategory.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { exhibitions: true, companies: true } } } })
+        : await prisma.topic.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { exhibitions: true, companies: true } } } });
       return records.map(mapDatabaseItem);
     } catch (error) {
       if (!canUseDemoFallback(error)) throw error;
@@ -135,7 +135,9 @@ export async function renameTaxonomy(kind: TaxonomyKind, id: string, rawName: st
 export async function deleteTaxonomy(kind: TaxonomyKind, id: string) {
   if (useDatabase && Date.now() >= (globalStore.iecTaxonomyDatabaseRetryAt ?? 0)) {
     try {
-      const usageCount = kind === "categories" ? await prisma.exhibitionCategory.count({ where: { categoryId: id } }) : await prisma.exhibitionTopic.count({ where: { topicId: id } });
+      const usageCount = kind === "categories"
+        ? await prisma.exhibitionCategory.count({ where: { categoryId: id } }) + await prisma.companyCategory.count({ where: { categoryId: id } })
+        : await prisma.exhibitionTopic.count({ where: { topicId: id } }) + await prisma.companyTopic.count({ where: { topicId: id } });
       if (usageCount) throw new TaxonomyInUseError(usageCount);
       if (kind === "categories") await prisma.industryCategory.delete({ where: { id } });
       else await prisma.topic.delete({ where: { id } });
