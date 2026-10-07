@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createExhibition, deleteExhibition, listExhibitions, listHomeExhibitions, sortItems } from "@/lib/exhibitions/repository";
+import { createExhibition, deleteExhibition, listExhibitions, listHomeExhibitions, setVisitorMessagingStatus, sortItems } from "@/lib/exhibitions/repository";
 import { seedExhibitions } from "@/lib/exhibitions/seed-data";
 import type { Exhibition } from "@/lib/exhibitions/types";
 
@@ -23,6 +23,15 @@ describe("exhibition queries", () => {
   it("searches across city and topics", async () => {
     expect((await listExhibitions({ q: "Singapore" })).items.some((item) => item.slug === "gastech-2026")).toBe(true);
     expect((await listExhibitions({ q: "Hydrogen" })).items.length).toBeGreaterThan(0);
+  });
+  it("filters exhibitions by visitor-messaging availability", async () => {
+    await setVisitorMessagingStatus("gastech-2026", true, "user-1");
+    try {
+      expect((await listExhibitions({ visitorMessaging: true })).items.some((item) => item.id === "gastech-2026")).toBe(true);
+      expect((await listExhibitions({ visitorMessaging: false })).items.some((item) => item.id === "gastech-2026")).toBe(false);
+    } finally {
+      await setVisitorMessagingStatus("gastech-2026", false, "user-1");
+    }
   });
   it("orders ongoing, then future nearest-first, then recently ended", () => {
     const items = [event("april", "2027-04-06T12:00:00Z"), event("past-old", "2026-08-01T12:00:00Z"), event("november", "2026-11-11T12:00:00Z"), event("ongoing", "2026-09-17T12:00:00Z", "2026-09-20T12:00:00Z"), event("october", "2026-10-05T12:00:00Z"), event("september", "2026-09-25T12:00:00Z")];

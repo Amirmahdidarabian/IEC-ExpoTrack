@@ -58,6 +58,7 @@ function mapRecord(record: Record<string, unknown>): Exhibition {
     categories, topicItems,
     saved: Boolean(record.saved),
     exhibitorList: Boolean(record.exhibitorList),
+    visitorMessaging: Boolean(record.visitorMessaging),
     preEventEmailSent: Boolean(record.preEventEmailSent), preEventEmailSentAt: record.preEventEmailSentAt ? new Date(record.preEventEmailSentAt as string | Date).toISOString() : null,
     postEventEmailSent: Boolean(record.postEventEmailSent), postEventEmailSentAt: record.postEventEmailSentAt ? new Date(record.postEventEmailSentAt as string | Date).toISOString() : null,
     preEventEmailSentBy: record.preEventEmailSentBy as { id: string; username: string } | null ?? null,
@@ -80,6 +81,7 @@ function filterDemo(items: Exhibition[], filters: ExhibitionFilters) {
     const searchText = [item.name, item.industry, item.country, item.city, item.venue, item.organizer, ...item.topics].join(" ").toLowerCase();
     return (!q || searchText.includes(q)) && (!filters.country || item.country === filters.country) && (!filters.industry || item.industry === filters.industry)
       && (!filters.year || new Date(item.startDate).getFullYear().toString() === filters.year) && (!filters.topic || item.topics.some((topic) => topic.toLowerCase() === filters.topic!.toLowerCase()))
+      && (filters.visitorMessaging === undefined || Boolean(item.visitorMessaging) === filters.visitorMessaging)
       && matchStatus(item, filters.status);
   });
 }
@@ -95,6 +97,7 @@ function databaseWhere(filters: ExhibitionFilters, forcedStatus?: "upcoming" | "
   if (filters.country) conditions.push({ country: filters.country });
   if (filters.industry) conditions.push({ OR: [{ industry: filters.industry }, { categories: { some: { category: { name: filters.industry } } } }] });
   if (filters.topic) conditions.push({ OR: [{ topics: { array_contains: [filters.topic] } }, { topicLinks: { some: { topic: { name: filters.topic } } } }] });
+  if (filters.visitorMessaging !== undefined) conditions.push({ visitorMessaging: filters.visitorMessaging });
   if (filters.year) {
     const year = Number(filters.year);
     if (Number.isInteger(year)) conditions.push({ startDate: { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) } });
@@ -420,6 +423,32 @@ export async function setExhibitorListStatus(id: string, available: boolean, act
   const item = globalStore.iecDemoExhibitions!.find((entry) => entry.id === id);
   if (!item) throw new Error("Exhibition not found");
   item.exhibitorList = available;
+  item.updatedAt = new Date().toISOString();
+  return item;
+}
+
+export async function setVisitorMessagingStatus(id: string, available: boolean, actorId: string) {
+  if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
+    try {
+      const updated = await prisma.$transaction(async (tx) => {
+        const existing = await tx.exhibition.findUniqueOrThrow({ where: { id }, select: { id: true, name: true } });
+        const record = await tx.exhibition.update({ where: { id }, data: { visitorMessaging: available, updatedById: actorId }, include: recordInclude });
+        await tx.auditLog.create({ data: {
+          actorUserId: actorId, action: "UPDATE_EXHIBITION", entityType: "EXHIBITION", entityId: existing.id, entityLabel: existing.name,
+          description: `Marked networking application as ${available ? "available" : "not available"}`,
+          metadata: { field: "visitorMessaging", available },
+        } });
+        return record;
+      });
+      return mapRecord(updated as unknown as Record<string, unknown>);
+    } catch (error) {
+      if (!canUseDemoFallback(error)) throw error;
+      reportDemoFallback(error);
+    }
+  }
+  const item = globalStore.iecDemoExhibitions!.find((entry) => entry.id === id);
+  if (!item) throw new Error("Exhibition not found");
+  item.visitorMessaging = available;
   item.updatedAt = new Date().toISOString();
   return item;
 }

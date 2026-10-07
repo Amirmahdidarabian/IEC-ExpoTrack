@@ -8,11 +8,12 @@ import { requireSameOrigin } from "@/lib/auth/request-security";
 
 export async function GET(request: NextRequest) {
   const p = request.nextUrl.searchParams;
+  const visitorMessaging = p.get("visitorMessaging");
   try {
     await requireAuthenticatedUser({ permission: Permission.VIEW_EXHIBITIONS });
     return NextResponse.json(await listExhibitions({
       q: p.get("q") ?? undefined, country: p.get("country") ?? undefined, industry: p.get("industry") ?? undefined,
-      year: p.get("year") ?? undefined, topic: p.get("topic") ?? undefined, status: (p.get("status") ?? "all") as never,
+      year: p.get("year") ?? undefined, topic: p.get("topic") ?? undefined, visitorMessaging: visitorMessaging === "true" ? true : visitorMessaging === "false" ? false : undefined, status: (p.get("status") ?? "all") as never,
       sort: (p.get("sort") ?? "nearest") as never, page: Number(p.get("page") ?? 1), pageSize: Number(p.get("pageSize") ?? 50),
     }));
   } catch (error) {

@@ -4,6 +4,7 @@ const base = {
   eventType: "International Exhibition",
   saved: false,
   exhibitorList: false,
+  visitorMessaging: false,
   exhibitorListUrl: "",
   createdAt: "2026-08-01T09:00:00.000Z",
   updatedAt: "2026-09-12T09:00:00.000Z",
