@@ -11,3 +11,6 @@ npm-debug.log*
 *.tsbuildinfo
 *.rar
 .security-check.json
+.release-check.json
+GITHUB-AND-DEPLOY-FA.md
+outputs

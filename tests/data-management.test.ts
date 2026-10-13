@@ -22,13 +22,20 @@ function backup(): BackupDocument {
     data: {
       categories: [{ id: "cat-1", name: "Energy", normalizedName: "energy", slug: "energy", createdAt: date, updatedAt: date }],
       topics: [{ id: "topic-1", name: "Hydrogen", normalizedName: "hydrogen", slug: "hydrogen", createdAt: date, updatedAt: date }],
-      exhibitions: [{ id: "expo-1", slug: "energy-2027", name: "Energy 2027", tagline: "", industry: "Energy", eventType: "Exhibition", country: "Germany", countryCode: "DE", city: "Berlin", venue: "IEC", address: "", startDate: "2027-01-01T00:00:00.000Z", endDate: null, timezone: "Europe/Berlin", organizer: "IEC", website: "https://example.com", exhibitorListUrl: "https://example.com/exhibitors", description: "Description", aiReport: "Report", topics: ["Hydrogen"], saved: false, exhibitorList: true, preEventEmailSent: true, preEventEmailSentAt: date, postEventEmailSent: false, postEventEmailSentAt: null, createdAt: date, updatedAt: date, categoryIds: ["cat-1"], topicIds: ["topic-1"], sources: [{ id: "source-1", label: "Official", url: "https://example.com", lastChecked: date, priority: 1 }] }],
+      exhibitions: [{ id: "expo-1", slug: "energy-2027", name: "Energy 2027", tagline: "", industry: "Energy", eventType: "Exhibition", country: "Germany", countryCode: "DE", city: "Berlin", venue: "IEC", address: "", startDate: "2027-01-01T00:00:00.000Z", endDate: null, timezone: "Europe/Berlin", organizer: "IEC", website: "https://example.com", exhibitorListUrl: "https://example.com/exhibitors", description: "Description", aiReport: "Report", topics: ["Hydrogen"], saved: false, exhibitorList: true, exhibitorListWithLink: true, visitorMessaging: true, preEventEmailSent: true, preEventEmailSentAt: date, postEventEmailSent: false, postEventEmailSentAt: null, createdAt: date, updatedAt: date, categoryIds: ["cat-1"], topicIds: ["topic-1"], sources: [{ id: "source-1", label: "Official", url: "https://example.com", lastChecked: date, priority: 1 }] }],
     },
   };
 }
 
 describe("IEC backup validation", () => {
   it("accepts the documented versioned format", () => expect(parseBackupText(JSON.stringify(backup()))).toEqual(backup()));
+  it("accepts older backups and preserves new operational statuses on round trip", () => {
+    const legacy = JSON.parse(JSON.stringify(backup()));
+    delete legacy.data.exhibitions[0].exhibitorListWithLink;
+    delete legacy.data.exhibitions[0].visitorMessaging;
+    expect(parseBackupText(JSON.stringify(legacy)).data.exhibitions[0]).toMatchObject({ exhibitorListWithLink: false, visitorMessaging: false });
+    expect(parseBackupText(JSON.stringify(backup())).data.exhibitions[0]).toMatchObject({ exhibitorListWithLink: true, visitorMessaging: true });
+  });
   it("rejects invalid JSON, format and unsupported versions", () => {
     expect(() => parseBackupText("not json")).toThrow("not valid JSON");
     expect(() => parseBackupText(JSON.stringify({ ...backup(), format: "other" }))).toThrow("Invalid IEC backup");

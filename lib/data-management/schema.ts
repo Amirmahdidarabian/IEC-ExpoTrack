@@ -56,6 +56,8 @@ const exhibitionSchema = z.object({
   topics: z.array(z.string().max(200)).max(500),
   saved: z.boolean(),
   exhibitorList: z.boolean().default(false),
+  exhibitorListWithLink: z.boolean().default(false),
+  visitorMessaging: z.boolean().default(false),
   exhibitorListUrl: httpUrl.default(""),
   preEventEmailSent: z.boolean(),
   preEventEmailSentAt: nullableDate,

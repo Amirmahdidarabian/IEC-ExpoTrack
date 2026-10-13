@@ -27,6 +27,11 @@ describe("manual email follow-up transaction", () => {
     expect(updated.exhibitorList).toBe(true);
     await setExhibitorListStatus("gastech-2026", false, "user-1");
   });
+  it("switches exclusively between with-link, no-link and not-set statuses", async () => {
+    expect(await setExhibitorListStatus("gastech-2026", true, "user-1", true)).toMatchObject({ exhibitorList: true, exhibitorListWithLink: true });
+    expect(await setExhibitorListStatus("gastech-2026", true, "user-1", false)).toMatchObject({ exhibitorList: true, exhibitorListWithLink: false });
+    expect(await setExhibitorListStatus("gastech-2026", false, "user-1", true)).toMatchObject({ exhibitorList: false, exhibitorListWithLink: false });
+  });
   it("updates visitor-messaging availability in the demo catalog", async () => {
     const updated = await setVisitorMessagingStatus("gastech-2026", true, "user-1");
     expect(updated.visitorMessaging).toBe(true);

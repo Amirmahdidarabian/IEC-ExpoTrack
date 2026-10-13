@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { ClientReliability } from "@/components/ClientReliability";
 import "flag-icons/css/flag-icons.min.css";
 import "./globals.css";
 
@@ -9,5 +10,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" data-theme="dark" suppressHydrationWarning><head><Script src="/theme-init.js" strategy="beforeInteractive" /></head><body>{children}</body></html>;
+  return <html lang="en" data-theme="dark" suppressHydrationWarning><head><Script src="/theme-init.js" strategy="beforeInteractive" /></head><body><ClientReliability />{children}</body></html>;
 }

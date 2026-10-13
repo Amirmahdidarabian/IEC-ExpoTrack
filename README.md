@@ -114,7 +114,7 @@ docker compose up --build -d
 docker compose exec app npm run db:seed
 ```
 
-Before production deployment, run `npm run prod:check` and follow the exact environment, Docker, Nginx, HTTPS, verification, and GitHub ruleset steps in [PRODUCTION.md](PRODUCTION.md).
+On your development computer, run `npm run release:check` to verify code and dependency security without replacing your local `.env`. Before production deployment, run `npm run prod:check` with production configuration and follow the environment, Docker, Nginx, HTTPS, verification, and GitHub ruleset steps in [PRODUCTION.md](PRODUCTION.md).
 
 ## Nginx reverse proxy
 

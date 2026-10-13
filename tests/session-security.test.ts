@@ -22,6 +22,15 @@ describe("session security", () => {
     await expect(getCurrentUser()).resolves.toEqual({ id: "user-1", username: "sara", role: "USER", isActive: true, mustChangePassword: false, permissions: [] });
     expect(JSON.stringify(await getCurrentUser())).not.toContain("passwordHash");
   });
+  it("keeps an unexpired session valid after eleven idle minutes", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.session = { ...mocks.session!, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60_000) };
+      vi.advanceTimersByTime(11 * 60_000);
+      expect(await getCurrentUser()).toMatchObject({ id: "user-1" });
+      expect(mocks.deleteSession).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
   it("rejects and removes disabled-user sessions", async () => {
     mocks.session = { ...mocks.session!, user: { ...mocks.session!.user, isActive: false } };
     await expect(getCurrentUser()).resolves.toBeNull(); expect(mocks.deleteSession).toHaveBeenCalledWith({ where: { id: "session-1" } });

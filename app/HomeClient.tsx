@@ -81,6 +81,6 @@ export function HomeClient({ user, exhibitions, asOf, canView }: { user: HomeUse
   const canCreate = user?.role === "ADMIN" || user?.permissions.includes("CREATE_EXHIBITIONS");
   if (!user) return <PublicHome />;
   return <><DashboardHome user={user} exhibitions={exhibitions} asOf={asOf} canView={canView} onAdd={() => setAdding(true)} />
-    {adding && canCreate && <ReviewModal initial={blankExhibition()} mode="manual" onClose={() => { setAdding(false); history.replaceState(null, "", "/"); }} />}
+    {(adding || params.get("add") === "manual") && canCreate && <ReviewModal initial={blankExhibition()} mode="manual" onClose={() => { setAdding(false); history.replaceState(null, "", "/"); }} />}
   </>;
 }

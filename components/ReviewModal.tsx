@@ -87,7 +87,7 @@ export function ReviewModal({ initial, onClose, mode = "review", onSaved }: { in
     } finally { setPhase("idle"); }
   }
 
-  if (outcome) return <Modal onClose={onClose} label="Exhibition saved"><div className="success-state"><div className="success-icon"><Check /></div><p className="eyebrow">Exhibition database updated</p><h2>{outcome.title}</h2><p>{outcome.item.name} is ready in your intelligence database.</p><div className="success-actions"><Link className="button primary" href={`/exhibitions/${outcome.item.slug}`}>View Exhibition</Link><Link className="button outline" href="/exhibitions">Back to Exhibitions</Link></div></div></Modal>;
+  if (outcome) return <Modal onClose={onClose} label="Exhibition saved"><div className="success-state"><div className="success-icon"><Check /></div><p className="eyebrow">Exhibition database updated</p><h2>{outcome.title}</h2><p>{outcome.item.name} is ready in your intelligence database.</p><div className="success-actions"><Link className="button primary" href={`/exhibitions/${outcome.item.slug}`} onNavigate={onClose}>View Exhibition</Link><Link className="button outline" href="/exhibitions" onNavigate={onClose}>Back to Exhibitions</Link></div></div></Modal>;
 
   return <><Modal onClose={onClose} label={mode === "manual" ? "Add exhibition" : editing ? "Edit exhibition" : "Exhibition found"} className="review-modal">
     {toast && <div className="toast" role="status"><Check /> {toast}</div>}

@@ -14,6 +14,24 @@ describe("exhibition dates", () => {
     expect(status).toMatchObject({ state: "ongoing", detail: "Day 2 of 3" });
   });
   it("reports a past exhibition", () => expect(getEventStatus("2025-04-07T09:00:00Z", "2025-04-13T18:00:00Z", "2026-01-01T00:00:00Z").state).toBe("past"));
+  it("shows how many complete days have passed since the exhibition ended", () => {
+    expect(getEventStatus("2026-09-15T09:00:00Z", "2026-09-18T18:00:00Z", "2026-10-13T18:00:00Z")).toMatchObject({ state: "past", label: "Ended", detail: "25 days ago", days: 25 });
+    expect(getEventStatus("2026-09-15T09:00:00Z", "2026-09-18T18:00:00Z", "2026-09-19T18:00:00Z").detail).toBe("1 day ago");
+  });
+  it("does not claim a full day has passed when an exhibition just ended", () => {
+    expect(getEventStatus("2026-09-15T09:00:00Z", "2026-09-18T18:00:00Z", "2026-09-18T19:00:00Z")).toMatchObject({ state: "past", detail: "Less than a day ago", days: 0 });
+  });
+  it("counts elapsed days from the end of the selected day in the exhibition timezone", () => {
+    const start = "2026-09-15T12:00:00.000Z";
+    const end = "2026-09-18T12:00:00.000Z";
+    expect(getEventStatus(start, end, "2026-09-18T19:59:59.999Z", "Asia/Dubai").state).toBe("ongoing");
+    expect(getEventStatus(start, end, "2026-09-18T20:00:00.000Z", "Asia/Dubai").state).toBe("past");
+    expect(getEventStatus(start, end, "2026-09-19T19:59:59.000Z", "Asia/Dubai")).toMatchObject({ state: "past", days: 0 });
+    expect(getEventStatus(start, end, "2026-09-19T20:00:00.000Z", "Asia/Dubai")).toMatchObject({ state: "past", days: 1, detail: "1 day ago" });
+  });
+  it("uses the start date when a single-day exhibition has no end date", () => {
+    expect(getEventStatus("2026-09-18T12:00:00.000Z", null, "2026-09-20T00:00:00Z", "UTC")).toMatchObject({ state: "past", days: 1, detail: "1 day ago" });
+  });
   it("derives inclusive multi-day duration", () => expect(getDurationDays("2026-09-15T09:00:00Z", "2026-09-18T18:00:00Z")).toBe(4));
   it("formats a same-month range without contradiction", () => expect(formatEventDate("2026-09-15T09:00:00Z", "2026-09-18T18:00:00Z")).toBe("15–18 Sep 2026"));
   it("derives Persian display from the same canonical dates", () => {

@@ -37,7 +37,8 @@ function zonedBoundary(value: string | Date, timezone: string, endOfDay = false)
     const target = Date.UTC(parts.year, parts.month - 1, parts.day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
     const formatter = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
     const displayed = Object.fromEntries(formatter.formatToParts(new Date(target)).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
-    const offset = Date.UTC(displayed.year, displayed.month - 1, displayed.day, displayed.hour, displayed.minute, displayed.second) - target;
+    // Intl reports whole seconds; retain the original end-of-day milliseconds.
+    const offset = Date.UTC(displayed.year, displayed.month - 1, displayed.day, displayed.hour, displayed.minute, displayed.second) - Math.floor(target / 1000) * 1000;
     return new Date(target - offset);
   } catch { return dateValue(value); }
 }
@@ -75,7 +76,9 @@ export function getEventStatus(startValue: string | Date, endValue?: string | Da
     const duration = getDurationDays(startValue, endValue);
     return { state: "ongoing" as EventState, label: "Live now", detail: `Day ${Math.min(day, duration)} of ${duration}`, days: 0, hours: 0, minutes: 0 };
   }
-  return { state: "past" as EventState, label: "Ended", detail: format(safeDisplayDate(end)!, "dd MMM yyyy"), days: 0, hours: 0, minutes: 0 };
+  const elapsedMinutes = Math.max(0, differenceInMinutes(now, end));
+  const days = Math.floor(elapsedMinutes / 1440);
+  return { state: "past" as EventState, label: "Ended", detail: days === 0 ? "Less than a day ago" : `${days} ${days === 1 ? "day" : "days"} ago`, days, hours: Math.floor((elapsedMinutes % 1440) / 60), minutes: elapsedMinutes % 60 };
 }
 
 export function getDurationDays(startValue: string | Date, endValue?: string | Date | null) {

@@ -200,6 +200,7 @@ model Exhibition {
   topics                 Json
   saved                  Boolean              @default(false)
   exhibitorList          Boolean              @default(false)
+  exhibitorListWithLink  Boolean              @default(false)
   visitorMessaging       Boolean              @default(false)
   exhibitorListUrl       String               @default("")
   preEventEmailSent      Boolean              @default(false)

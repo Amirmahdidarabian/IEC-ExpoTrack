@@ -16,14 +16,22 @@ Use one as `POSTGRES_PASSWORD` and one as `AUTH_SECRET`. Build `DATABASE_URL` wi
 
 ## 2. Run the automated gate
 
+On a development computer, use `npm run release:check` to check the code, build, dependencies and secrets with your local configuration. It reports **CODE READY**, not production readiness, and writes `.release-check.json`. It does not change your `.env` or check the server's secrets.
+
+For the full gate, run in an environment with the actual production configuration:
+
 ```bash
 npm ci
 npm run prod:check
 ```
 
-The command validates Prisma, generates the client, checks TypeScript, runs tests, builds the application, rejects High/Critical dependency findings, scans Git history with Gitleaks, and validates the production environment. It also writes a secret-free local `.security-check.json` result for deployment automation. That file is ignored by Git; the web page never executes build or scanning tools.
+The command validates Prisma, generates the client, runs lint, checks TypeScript, runs tests, builds the application, rejects High/Critical dependency findings, scans Git history with Gitleaks, and validates the production environment. It also writes a secret-free local `.security-check.json` result for deployment automation. That file is ignored by Git; the web page never executes build or scanning tools.
+
+To validate a separately prepared, untracked production file without replacing the development `.env`, use `npm run prod:check -- --env-file .env.production.local`. This file is used only by the environment-validation subprocess; builds and tests still use their normal configuration. The runtime configuration must also be validated on the server. Do not copy server credentials onto a development computer just to make a check pass.
 
 The `deepmerge-ts` override in `package.json` patches GHSA-ggr8-5vv4-36mx in Prisma's CLI-only configuration loader. Remove the override after the installed `@prisma/config` release depends on `deepmerge-ts` 8 or newer, then confirm `npm run prod:check` remains green.
+
+Next.js and its lint config require at least 16.3.8; Vitest requires at least 4.1.11. Security overrides update `sharp`, `source-map-js` and ExcelJS's CommonJS-compatible `uuid` dependency. The Next ESLint plugin's sole glob consumer calls `globSync(pattern, { onlyDirectories: true })`; its `fast-glob` dependency is replaced by `tinyglobby` using an npm alias to eliminate the unpatched `braces` chain while retaining the Next rules. This is scoped to that plugin, not a general drop-in replacement for every fast-glob API. Review the override and compatibility tests when upgrading the plugin. See [the braces advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) and [tinyglobby's API](https://github.com/SuperchupuDev/tinyglobby).
 
 Gitleaks must be installed or Docker Desktop/the Docker daemon must be running. CI runs Gitleaks independently on every pull request to `main`.
 

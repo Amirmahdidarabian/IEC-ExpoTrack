@@ -58,6 +58,7 @@ function mapRecord(record: Record<string, unknown>): Exhibition {
     categories, topicItems,
     saved: Boolean(record.saved),
     exhibitorList: Boolean(record.exhibitorList),
+    exhibitorListWithLink: Boolean(record.exhibitorListWithLink),
     visitorMessaging: Boolean(record.visitorMessaging),
     preEventEmailSent: Boolean(record.preEventEmailSent), preEventEmailSentAt: record.preEventEmailSentAt ? new Date(record.preEventEmailSentAt as string | Date).toISOString() : null,
     postEventEmailSent: Boolean(record.postEventEmailSent), postEventEmailSentAt: record.postEventEmailSentAt ? new Date(record.postEventEmailSentAt as string | Date).toISOString() : null,
@@ -137,8 +138,9 @@ export function sortItems(items: Exhibition[], sort = "nearest", now: string | D
 }
 
 export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<ExhibitionListResult> {
-  const pageSize = Math.min(200, Math.max(1, filters.pageSize ?? 50));
-  const page = Math.max(1, filters.page ?? 1);
+  const showAll = filters.pageSize === "all";
+  let pageSize = showAll ? 1 : Math.min(200, Math.max(1, Number.isFinite(filters.pageSize) ? Math.floor(Number(filters.pageSize)) : 50));
+  const page = showAll ? 1 : Math.max(1, Number.isFinite(filters.page) ? Math.floor(filters.page!) : 1);
   if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
     try {
       const offset = (page - 1) * pageSize;
@@ -148,6 +150,7 @@ export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<
         const groups = ["ongoing", "upcoming", "past"] as const;
         const counts = await Promise.all(groups.map((status) => prisma.exhibition.count({ where: databaseWhere(filters, status) })));
         total = counts.reduce((sum, count) => sum + count, 0);
+        if (showAll) pageSize = Math.max(1, total);
         let remainingOffset = offset; let remainingTake = pageSize;
         for (let index = 0; index < groups.length && remainingTake > 0; index++) {
           if (remainingOffset >= counts[index]) { remainingOffset -= counts[index]; continue; }
@@ -156,6 +159,7 @@ export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<
         }
       } else {
         const where = databaseWhere(filters); total = await prisma.exhibition.count({ where });
+        if (showAll) pageSize = Math.max(1, total);
         const status = filters.status && filters.status !== "all" ? filters.status : undefined;
         records = await prisma.exhibition.findMany({ where, orderBy: databaseOrder(filters.sort, status), skip: offset, take: pageSize, include });
       }
@@ -175,6 +179,7 @@ export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<
 
   const filtered = sortItems(filterDemo(all, filters), filters.sort);
   const total = filtered.length;
+  if (showAll) pageSize = Math.max(1, total);
   return {
     items: filtered.slice((page - 1) * pageSize, page * pageSize), total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)),
     stats: { total: all.length, countries: new Set(all.map((item) => item.country).filter(Boolean)).size, industries: new Set(all.map((item) => item.industry).filter(Boolean)).size },
@@ -401,16 +406,16 @@ export async function setEmailFollowUpStatus(id: string, kind: "pre" | "post", s
   });
 }
 
-export async function setExhibitorListStatus(id: string, available: boolean, actorId: string) {
+export async function setExhibitorListStatus(id: string, available: boolean, actorId: string, withLink = false) {
   if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
     try {
       const updated = await prisma.$transaction(async (tx) => {
         const existing = await tx.exhibition.findUniqueOrThrow({ where: { id }, select: { id: true, name: true } });
-        const record = await tx.exhibition.update({ where: { id }, data: { exhibitorList: available, updatedById: actorId }, include: recordInclude });
+        const record = await tx.exhibition.update({ where: { id }, data: { exhibitorList: available, exhibitorListWithLink: available && withLink, updatedById: actorId }, include: recordInclude });
         await tx.auditLog.create({ data: {
           actorUserId: actorId, action: "UPDATE_EXHIBITION", entityType: "EXHIBITION", entityId: existing.id, entityLabel: existing.name,
-          description: `Marked exhibitor list as ${available ? "available" : "not available"}`,
-          metadata: { field: "exhibitorList", available },
+          description: `Marked exhibitor list as ${available ? withLink ? "with link" : "no link" : "not set"}`,
+          metadata: { field: "exhibitorList", available, withLink: available && withLink },
         } });
         return record;
       });
@@ -423,6 +428,7 @@ export async function setExhibitorListStatus(id: string, available: boolean, act
   const item = globalStore.iecDemoExhibitions!.find((entry) => entry.id === id);
   if (!item) throw new Error("Exhibition not found");
   item.exhibitorList = available;
+  item.exhibitorListWithLink = available && withLink;
   item.updatedAt = new Date().toISOString();
   return item;
 }

@@ -24,6 +24,22 @@ describe("exhibition queries", () => {
     expect((await listExhibitions({ q: "Singapore" })).items.some((item) => item.slug === "gastech-2026")).toBe(true);
     expect((await listExhibitions({ q: "Hydrogen" })).items.length).toBeGreaterThan(0);
   });
+  it("returns every matching exhibition in All mode and resets stale page numbers", async () => {
+    const result = await listExhibitions({ pageSize: "all", page: 8, q: "Hydrogen" });
+    expect(result.items.length).toBe(result.total);
+    expect(result.page).toBe(1);
+    expect(result.pageCount).toBe(1);
+    expect(result.items.every((item) => [item.name, item.industry, ...item.topics].join(" ").includes("Hydrogen"))).toBe(true);
+  });
+  it("does not silently cap All at 200 records", async () => {
+    const store = globalThis as unknown as { iecDemoExhibitions: Exhibition[] };
+    const original = store.iecDemoExhibitions;
+    try {
+      store.iecDemoExhibitions = Array.from({ length: 230 }, (_, index) => event(`all-${index}`, "2028-01-01T12:00:00Z"));
+      expect((await listExhibitions({ pageSize: "all" })).items).toHaveLength(230);
+      expect((await listExhibitions({ pageSize: 200 })).items).toHaveLength(200);
+    } finally { store.iecDemoExhibitions = original; }
+  });
   it("filters exhibitions by visitor-messaging availability", async () => {
     await setVisitorMessagingStatus("gastech-2026", true, "user-1");
     try {

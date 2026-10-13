@@ -39,6 +39,7 @@ export type Exhibition = {
   topicItems: TaxonomyItem[];
   saved: boolean;
   exhibitorList?: boolean;
+  exhibitorListWithLink?: boolean;
   visitorMessaging?: boolean;
   exhibitorListUrl: string;
   preEventEmailSent?: boolean;
@@ -74,7 +75,7 @@ export type ExhibitionFilters = {
   status?: StatusKey;
   sort?: SortKey;
   page?: number;
-  pageSize?: number;
+  pageSize?: number | "all";
 };
 
 export type ExhibitionListResult = {

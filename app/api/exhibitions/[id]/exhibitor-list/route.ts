@@ -6,13 +6,13 @@ import { requireSameOrigin } from "@/lib/auth/request-security";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { setExhibitorListStatus } from "@/lib/exhibitions/repository";
 
-const schema = z.object({ available: z.boolean() });
+const schema = z.object({ available: z.boolean(), withLink: z.boolean().default(false) });
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     requireSameOrigin(request);
     const actor = await requireAuthenticatedUser({ permission: Permission.UPDATE_EXHIBITIONS });
     const input = schema.parse(await request.json());
-    return NextResponse.json(await setExhibitorListStatus((await context.params).id, input.available, actor.id));
+    return NextResponse.json(await setExhibitorListStatus((await context.params).id, input.available, actor.id, input.withLink));
   } catch (error) { return errorResponse(error, "Unable to update exhibitor list status."); }
 }
