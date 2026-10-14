@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createExhibition, deleteExhibition, listExhibitions, listHomeExhibitions, setVisitorMessagingStatus, sortItems } from "@/lib/exhibitions/repository";
+import { createExhibition, deleteExhibition, listExhibitions, listHomeExhibitions, listSavedExhibitions, setVisitorMessagingStatus, sortItems } from "@/lib/exhibitions/repository";
 import { seedExhibitions } from "@/lib/exhibitions/seed-data";
 import type { Exhibition } from "@/lib/exhibitions/types";
 
@@ -38,6 +38,17 @@ describe("exhibition queries", () => {
       store.iecDemoExhibitions = Array.from({ length: 230 }, (_, index) => event(`all-${index}`, "2028-01-01T12:00:00Z"));
       expect((await listExhibitions({ pageSize: "all" })).items).toHaveLength(230);
       expect((await listExhibitions({ pageSize: 200 })).items).toHaveLength(200);
+    } finally { store.iecDemoExhibitions = original; }
+  });
+  it("returns saved exhibitions beyond the first 50 or 200 catalog entries", async () => {
+    const store = globalThis as unknown as { iecDemoExhibitions: Exhibition[] };
+    const original = store.iecDemoExhibitions;
+    try {
+      store.iecDemoExhibitions = Array.from({ length: 230 }, (_, index) => ({ ...event(`saved-${index}`, "2028-01-01T12:00:00Z"), saved: index >= 55 }));
+      const saved = await listSavedExhibitions();
+      expect(saved).toHaveLength(175);
+      expect(saved.some((item) => item.id === "saved-229")).toBe(true);
+      expect(saved.every((item) => item.saved)).toBe(true);
     } finally { store.iecDemoExhibitions = original; }
   });
   it("filters exhibitions by visitor-messaging availability", async () => {

@@ -137,6 +137,20 @@ export function sortItems(items: Exhibition[], sort = "nearest", now: string | D
   });
 }
 
+/** Query saved records before pagination so older saved exhibitions are never omitted. */
+export async function listSavedExhibitions(): Promise<Exhibition[]> {
+  if (useDatabase && Date.now() >= (globalStore.iecDatabaseRetryAt ?? 0)) {
+    try {
+      const records = await prisma.exhibition.findMany({ where: { saved: true }, orderBy: [{ createdAt: "desc" }, { id: "asc" }], include: recordInclude });
+      return records.map((record) => mapRecord(record as unknown as Record<string, unknown>));
+    } catch (error) {
+      if (!canUseDemoFallback(error)) throw error;
+      reportDemoFallback(error);
+    }
+  }
+  return sortItems(globalStore.iecDemoExhibitions!.filter((item) => item.saved), "recent");
+}
+
 export async function listExhibitions(filters: ExhibitionFilters = {}): Promise<ExhibitionListResult> {
   const showAll = filters.pageSize === "all";
   let pageSize = showAll ? 1 : Math.min(200, Math.max(1, Number.isFinite(filters.pageSize) ? Math.floor(Number(filters.pageSize)) : 50));

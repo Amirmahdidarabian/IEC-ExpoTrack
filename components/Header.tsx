@@ -29,11 +29,13 @@ export function Header({ publicNav = false, user }: { publicNav?: boolean; user?
   return (
     <header className="site-header" ref={headerRef}>
       <Brand />
-      <button className="mobile-menu" onClick={() => setMobileOpen((v) => !v)} aria-label="Toggle navigation"><span /><span /><span /></button>
-      <nav className={mobileOpen ? "main-nav open" : "main-nav"} aria-label="Primary navigation">
+      <button className="mobile-menu" onClick={() => setMobileOpen((v) => !v)} aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileOpen} aria-controls="primary-navigation"><span /><span /><span /></button>
+      <nav id="primary-navigation" className={mobileOpen ? "main-nav open" : "main-nav"} aria-label="Primary navigation">
         {shown.map(([href, label]) => <Link onClick={() => setMobileOpen(false)} key={href} className={pathname === href || (href !== "/" && pathname.startsWith(href)) ? "active" : ""} href={href}>{label}</Link>)}
         {!publicNav && canAdmin && <Link onClick={() => setMobileOpen(false)} className={pathname.startsWith("/admin") ? "active" : ""} href={adminHref}>Administration</Link>}
         {publicNav && <a href="mailto:hello@internationalenergy.club">Contact</a>}
+        {!publicNav && canCreateExhibition && <Link className="mobile-create" href="/?add=manual" onClick={() => setMobileOpen(false)}><Plus size={18} /> Add Exhibition</Link>}
+        {!publicNav && canCreateCompany && <Link className="mobile-create" href="/companies?add=1" onClick={() => setMobileOpen(false)}><Plus size={18} /> Add Company</Link>}
       </nav>
       <div className="header-actions">
         <ThemeToggle />

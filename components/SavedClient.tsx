@@ -1,19 +1,49 @@
 "use client";
 
 import { Bookmark, Building2, CalendarDays, MapPin } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { Exhibition } from "@/lib/exhibitions/types";
-import { formatEventDate } from "@/lib/exhibitions/dates";
+import { formatEventDate, getEventStatus } from "@/lib/exhibitions/dates";
+import { loadSavedItems } from "@/lib/client/saved";
 
 type SavedCompany = { id: string; name: string; domain: string | null; country: string | null; priorityScore: number | null };
 
-export function SavedClient() {
-  const [items, setItems] = useState<Exhibition[] | null>(null); const [companies, setCompanies] = useState<SavedCompany[] | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => { let cancelled = false; Promise.all(["/api/exhibitions/saved", "/api/companies/saved"].map(async (url) => { const response = await fetch(url); if (!response.ok) throw new Error("Unable to load saved items."); return response.json(); })).then(([events, organizations]) => { if (!cancelled) { setItems(events); setCompanies(organizations); } }).catch((caught) => { if (!cancelled) setError(caught instanceof Error ? caught.message : "Unable to load saved items."); }); return () => { cancelled = true; }; }, []);
-  if (error) return <div className="empty-state"><h3>Saved items could not be loaded</h3><p role="alert">{error}</p><button className="button outline" onClick={() => window.location.reload()}>Try again</button></div>;
-  if (!items || !companies) return <div className="loading-grid"><i /><i /><i /></div>;
-  if (!items.length && !companies.length) return <div className="empty-state saved-empty"><Bookmark /><h3>No saved intelligence yet</h3><p>Save an exhibition or company to build your shortlist.</p><Link className="button primary" href="/exhibitions">Explore Exhibitions</Link></div>;
-  return <>{items.length > 0 && <div className="saved-grid">{items.map((item) => <article className="saved-card panel" key={item.id}><div className="saved-card-top"><span>{item.industry}</span><Bookmark /></div><h2><Link href={`/exhibitions/${item.slug}`}>{item.name}</Link></h2><p>{item.tagline}</p><div><span><MapPin />{item.city}, {item.country}</span><span><CalendarDays />{formatEventDate(item.startDate, item.endDate)}</span></div><Link className="button outline" href={`/exhibitions/${item.slug}`}>View Exhibition →</Link></article>)}</div>}{companies.length > 0 && <section className="saved-companies"><h2>Saved Companies</h2><div className="saved-grid">{companies.map((company) => <article className="saved-card panel" key={company.id}><div className="saved-card-top"><span>Company</span><Building2 /></div><h2><Link href={`/companies?company=${company.id}`}>{company.name}</Link></h2><p>{company.domain ?? "No website"}</p><div><span><MapPin />{company.country ?? "Country not set"}</span><span>Priority {company.priorityScore ?? "not set"}</span></div><Link className="button outline" href={`/companies?company=${company.id}`}>View Company →</Link></article>)}</div></section>}</>;
+function useSavedItems<T>(url: string | null) {
+  const [state, setState] = useState<{ items: T[] | null; error: string }>({ items: null, error: "" });
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    if (!url) return;
+    const controller = new AbortController();
+    loadSavedItems<T>(url, controller.signal).then((items) => {
+      if (!controller.signal.aborted) setState({ items, error: "" });
+    }).catch((error) => {
+      if (!controller.signal.aborted) setState({ items: null, error: error instanceof Error ? error.message : "Unable to load saved items." });
+    });
+    return () => controller.abort();
+  }, [url, attempt]);
+  return { ...state, retry: () => { setState({ items: null, error: "" }); setAttempt((value) => value + 1); } };
+}
+
+function SavedSection({ title, items, error, retry, children }: { title: string; items: unknown[] | null; error: string; retry: () => void; children: ReactNode }) {
+  return <section className="saved-section" aria-label={title}>
+    <h2>{title}{items && <span>{items.length}</span>}</h2>
+    {error ? <div className="empty-state saved-section-error"><h3>{title} could not be loaded</h3><p role="alert">{error}</p><button className="button outline" onClick={retry}>Try again</button></div>
+      : !items ? <div className="loading-grid" role="status" aria-label={`Loading ${title.toLowerCase()}`}><i /><i /><i /><span className="sr-only">Loading {title.toLowerCase()}…</span></div>
+      : !items.length ? <div className="empty-state saved-section-empty"><Bookmark /><h3>No {title.toLowerCase()} yet</h3><p>Use the save button to add items to your shortlist.</p></div>
+      : <div className="saved-grid">{children}</div>}
+  </section>;
+}
+
+export function SavedClient({ canViewExhibitions, canViewCompanies }: { canViewExhibitions: boolean; canViewCompanies: boolean }) {
+  const exhibitions = useSavedItems<Exhibition>(canViewExhibitions ? "/api/exhibitions/saved" : null);
+  const companies = useSavedItems<SavedCompany>(canViewCompanies ? "/api/companies/saved" : null);
+  if (!canViewExhibitions && !canViewCompanies) return <div className="empty-state saved-empty"><Bookmark /><h3>No saved collections available</h3><p>Your account needs access to exhibitions or companies to view saved items.</p></div>;
+  return <div className="saved-collections">
+    {canViewExhibitions && <SavedSection title="Saved Exhibitions" {...exhibitions}>{exhibitions.items?.map((item) => {
+      const status = getEventStatus(item.startDate, item.endDate, new Date(), item.timezone);
+      return <article className="saved-card panel" key={item.id}><div className="saved-card-top"><span>{item.industry}</span><Bookmark aria-hidden="true" /></div><h3><Link href={`/exhibitions/${item.slug}`}>{item.name}</Link></h3><p>{item.tagline}</p><div className="saved-card-meta"><span><MapPin aria-hidden="true" />{item.city}{item.city && item.country ? ", " : ""}{item.country}</span><span><CalendarDays aria-hidden="true" />{formatEventDate(item.startDate, item.endDate)}</span><span className={`saved-event-status ${status.state}`}>{status.label} · {status.detail}</span></div><Link className="button outline" href={`/exhibitions/${item.slug}`}>View Exhibition →</Link></article>;
+    })}</SavedSection>}
+    {canViewCompanies && <SavedSection title="Saved Companies" {...companies}>{companies.items?.map((company) => <article className="saved-card panel" key={company.id}><div className="saved-card-top"><span>Company</span><Building2 aria-hidden="true" /></div><h3><Link href={`/companies?company=${company.id}`}>{company.name}</Link></h3><p>{company.domain ?? "No website"}</p><div className="saved-card-meta"><span><MapPin aria-hidden="true" />{company.country ?? "Country not set"}</span><span>Priority {company.priorityScore ?? "not set"}</span></div><Link className="button outline" href={`/companies?company=${company.id}`}>View Company →</Link></article>)}</SavedSection>}
+  </div>;
 }

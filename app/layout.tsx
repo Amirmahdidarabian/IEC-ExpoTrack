@@ -3,6 +3,7 @@ import Script from "next/script";
 import { ClientReliability } from "@/components/ClientReliability";
 import "flag-icons/css/flag-icons.min.css";
 import "./globals.css";
+import "./responsive.css";
 
 export const metadata: Metadata = {
   title: { default: "International Energy Club | Global Exhibition Intelligence", template: "%s | International Energy Club" },
