@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Bookmark, Building2, CalendarDays, ChevronDown, Home, LogOut, Menu, Plus, Search, Settings, ShieldCheck, UserRound, X } from "lucide-react";
+import { Bell, Bookmark, Building2, CalendarDays, ChevronDown, Home, LogOut, Menu, Newspaper, Plus, Search, Settings, ShieldCheck, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -47,6 +47,7 @@ function DashboardHome({ user, exhibitions, asOf, canView, onAdd }: { user: Home
     { href: "/", label: "Home", icon: Home },
     { href: "/exhibitions", label: "Exhibitions", icon: CalendarDays },
     { href: "/companies", label: "Companies", icon: Building2 },
+    ...(user.role === "ADMIN" || user.permissions.includes("VIEW_MEDIA") ? [{ href: "/media", label: "Media", icon: Newspaper }] : []),
     { href: "/saved", label: "Saved", icon: Bookmark },
   ];
 

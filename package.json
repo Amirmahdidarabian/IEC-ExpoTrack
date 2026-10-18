@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --pool=threads --maxWorkers=1 --no-file-parallelism",
+    "test:media:db": "node --env-file=.env --import tsx scripts/media-integration.ts",
     "security:scan": "node scripts/secret-scan.mjs",
     "env:check": "node scripts/validate-production-env.mjs",
     "prod:check": "node scripts/prod-check.mjs",

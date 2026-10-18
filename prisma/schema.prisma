@@ -25,6 +25,11 @@ enum Permission {
   UPDATE_COMPANIES
   DELETE_COMPANIES
   IMPORT_COMPANIES
+  VIEW_MEDIA
+  CREATE_MEDIA
+  UPDATE_MEDIA
+  DELETE_MEDIA
+  IMPORT_MEDIA
 }
 
 enum AuditAction {
@@ -63,6 +68,19 @@ enum AuditAction {
   COMPANY_IMPORT_STARTED
   COMPANY_IMPORT_COMPLETED
   COMPANY_IMPORT_FAILED
+  MEDIA_CREATED
+  MEDIA_UPDATED
+  MEDIA_DELETED
+  MEDIA_CONTACT_CREATED
+  MEDIA_CONTACT_UPDATED
+  MEDIA_CONTACT_DELETED
+  MEDIA_CLASSIFICATION_UPDATED
+  MEDIA_NOTE_CREATED
+  MEDIA_NOTE_UPDATED
+  MEDIA_NOTE_DELETED
+  MEDIA_IMPORT_STARTED
+  MEDIA_IMPORT_COMPLETED
+  MEDIA_IMPORT_FAILED
 }
 
 enum AuditEntityType {
@@ -73,6 +91,9 @@ enum AuditEntityType {
   COMPANY
   CONTACT
   COMPANY_IMPORT
+  MEDIA
+  MEDIA_CONTACT
+  MEDIA_IMPORT
 }
 
 enum CompanySocialPlatform {
@@ -103,25 +124,28 @@ enum CompanyImportStatus {
 }
 
 model User {
-  id                   String           @id @default(cuid())
-  username             String           @unique
+  id                   String             @id @default(cuid())
+  username             String             @unique
   passwordHash         String
-  role                 UserRole         @default(USER)
-  isActive             Boolean          @default(true)
-  mustChangePassword   Boolean          @default(true)
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
+  role                 UserRole           @default(USER)
+  isActive             Boolean            @default(true)
+  mustChangePassword   Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
   lastLoginAt          DateTime?
   permissions          UserPermission[]
   sessions             Session[]
-  auditLogs            AuditLog[]       @relation("AuditActor")
-  createdExhibitions   Exhibition[]     @relation("ExhibitionCreatedBy")
-  updatedExhibitions   Exhibition[]     @relation("ExhibitionUpdatedBy")
-  preEmailExhibitions  Exhibition[]     @relation("ExhibitionPreEmailBy")
-  postEmailExhibitions Exhibition[]     @relation("ExhibitionPostEmailBy")
-  createdCompanies     Company[]        @relation("CompanyCreatedBy")
-  companyNotes         CompanyNote[]    @relation("CompanyNoteAuthor")
+  auditLogs            AuditLog[]         @relation("AuditActor")
+  createdExhibitions   Exhibition[]       @relation("ExhibitionCreatedBy")
+  updatedExhibitions   Exhibition[]       @relation("ExhibitionUpdatedBy")
+  preEmailExhibitions  Exhibition[]       @relation("ExhibitionPreEmailBy")
+  postEmailExhibitions Exhibition[]       @relation("ExhibitionPostEmailBy")
+  createdCompanies     Company[]          @relation("CompanyCreatedBy")
+  companyNotes         CompanyNote[]      @relation("CompanyNoteAuthor")
   companyImportJobs    CompanyImportJob[] @relation("CompanyImportStartedBy")
+  createdMedia         MediaOutlet[]      @relation("MediaCreatedBy")
+  mediaNotes           MediaNote[]        @relation("MediaNoteAuthor")
+  mediaImportJobs      MediaImportJob[]   @relation("MediaImportActor")
 
   @@index([isActive])
 }
@@ -240,6 +264,7 @@ model IndustryCategory {
   updatedAt      DateTime             @updatedAt
   exhibitions    ExhibitionCategory[]
   companies      CompanyCategory[]
+  media          MediaCategory[]
 }
 
 model Topic {
@@ -251,6 +276,7 @@ model Topic {
   updatedAt      DateTime          @updatedAt
   exhibitions    ExhibitionTopic[]
   companies      CompanyTopic[]
+  media          MediaTopic[]
 }
 
 model ExhibitionCategory {
@@ -286,7 +312,7 @@ model Source {
 }
 
 model Company {
-  id             String               @id @default(cuid())
+  id             String              @id @default(cuid())
   name           String
   normalizedName String
   website        String?
@@ -295,11 +321,11 @@ model Company {
   country        String?
   description    String?
   priorityScore  Int?
-  saved          Boolean              @default(false)
+  saved          Boolean             @default(false)
   createdById    String?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  createdBy      User?                @relation("CompanyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  createdBy      User?               @relation("CompanyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   contacts       CompanyContact[]
   socialLinks    CompanySocialLink[]
   categories     CompanyCategory[]
@@ -423,4 +449,151 @@ model CompanyImportJob {
   @@index([startedAt])
   @@index([status])
   @@index([startedById])
+}
+
+enum MediaContactMethod {
+  EMAIL
+  CONTACT_PAGE
+  WEBSITE_FORM
+  OTHER
+}
+
+enum MediaImportStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model MediaOutlet {
+  id                  String              @id @default(cuid())
+  name                String
+  normalizedName      String
+  identityKey         String?             @unique
+  websiteUrl          String?
+  domain              String?
+  sourceCategoryRaw   String?
+  countryCode         String?
+  countryName         String?
+  publicationScopeRaw String?
+  description         String?
+  createdById         String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  createdBy           User?               @relation("MediaCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  contacts            MediaContact[]
+  socialLinks         MediaSocialLink[]
+  categories          MediaCategory[]
+  topics              MediaTopic[]
+  notes               MediaNote[]
+  sources             MediaImportSource[]
+
+  @@index([normalizedName])
+  @@index([domain])
+  @@index([countryCode])
+  @@index([publicationScopeRaw])
+  @@index([sourceCategoryRaw])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model MediaContact {
+  id             String             @id @default(cuid())
+  mediaOutletId  String
+  name           String?
+  roleLabel      String?
+  department     String?
+  email          String?
+  phone          String?
+  linkedInUrl    String?
+  contactPageUrl String?
+  contactMethod  MediaContactMethod @default(OTHER)
+  notes          String?
+  isPrimary      Boolean            @default(false)
+  position       Int                @default(0)
+  sourceLabelRaw String?
+  sourceValueRaw String?
+  sourceSheet    String?
+  sourceRow      Int?
+  importKey      String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  mediaOutlet    MediaOutlet        @relation(fields: [mediaOutletId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaOutletId, importKey])
+  @@index([mediaOutletId, position])
+  @@index([email])
+}
+
+model MediaSocialLink {
+  id            String                @id @default(cuid())
+  mediaOutletId String
+  platform      CompanySocialPlatform
+  url           String
+  mediaOutlet   MediaOutlet           @relation(fields: [mediaOutletId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaOutletId, platform, url])
+}
+
+model MediaCategory {
+  mediaOutletId String
+  categoryId    String
+  mediaOutlet   MediaOutlet      @relation(fields: [mediaOutletId], references: [id], onDelete: Cascade)
+  category      IndustryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@id([mediaOutletId, categoryId])
+  @@index([categoryId])
+}
+
+model MediaTopic {
+  mediaOutletId String
+  topicId       String
+  mediaOutlet   MediaOutlet @relation(fields: [mediaOutletId], references: [id], onDelete: Cascade)
+  topic         Topic       @relation(fields: [topicId], references: [id], onDelete: Restrict)
+
+  @@id([mediaOutletId, topicId])
+  @@index([topicId])
+}
+
+model MediaNote {
+  id            String      @id @default(cuid())
+  mediaOutletId String
+  body          String
+  createdById   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  mediaOutlet   MediaOutlet @relation(fields: [mediaOutletId], references: [id], onDelete: Cascade)
+  createdBy     User?       @relation("MediaNoteAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([mediaOutletId, createdAt])
+}
+
+model MediaImportJob {
+  id          String              @id @default(cuid())
+  fileName    String
+  fileHash    String
+  startedById String?
+  startedAt   DateTime            @default(now())
+  completedAt DateTime?
+  status      MediaImportStatus   @default(PROCESSING)
+  report      Json?
+  startedBy   User?               @relation("MediaImportActor", fields: [startedById], references: [id], onDelete: SetNull)
+  sources     MediaImportSource[]
+
+  @@index([fileHash])
+  @@index([startedAt])
+}
+
+model MediaImportSource {
+  id            String         @id @default(cuid())
+  mediaOutletId String
+  importJobId   String
+  sourceSheet   String
+  sourceRow     Int
+  rawValues     Json
+  warnings      Json
+  mediaOutlet   MediaOutlet    @relation(fields: [mediaOutletId], references: [id], onDelete: Cascade)
+  importJob     MediaImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+
+  @@unique([importJobId, sourceSheet, sourceRow])
+  @@index([mediaOutletId])
 }

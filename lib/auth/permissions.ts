@@ -32,4 +32,9 @@ export const permissionLabels: Record<Permission, string> = {
   UPDATE_COMPANIES: "Update companies, contacts, links, and notes",
   DELETE_COMPANIES: "Delete companies",
   IMPORT_COMPANIES: "Import companies from Excel",
+  VIEW_MEDIA: "View media and publication contacts",
+  CREATE_MEDIA: "Create media outlets",
+  UPDATE_MEDIA: "Update media, contacts, classification and notes",
+  DELETE_MEDIA: "Delete media outlets",
+  IMPORT_MEDIA: "Import media from Excel",
 };

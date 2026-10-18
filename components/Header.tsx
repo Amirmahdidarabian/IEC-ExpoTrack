@@ -8,7 +8,7 @@ import { Brand } from "./Brand";
 import { ThemeToggle } from "./ThemeToggle";
 
 const links = [
-  ["/", "Home"], ["/exhibitions", "Exhibitions"], ["/companies", "Companies"], ["/saved", "Saved"],
+  ["/", "Home"], ["/exhibitions", "Exhibitions"], ["/companies", "Companies"], ["/media", "Media"], ["/saved", "Saved"],
 ];
 
 type HeaderUser = { username: string; role: string; permissions: string[] };
@@ -23,8 +23,9 @@ export function Header({ publicNav = false, user }: { publicNav?: boolean; user?
   const canCreateCompany = user?.role === "ADMIN" || user?.permissions.includes("CREATE_COMPANIES");
   const canAdmin = user?.role === "ADMIN" || user?.permissions.some((item) => ["VIEW_ADMIN_DASHBOARD", "MANAGE_USERS", "VIEW_AUDIT_LOGS"].includes(item));
   const adminHref = user?.role === "ADMIN" || user?.permissions.includes("VIEW_ADMIN_DASHBOARD") ? "/admin" : user?.permissions.includes("MANAGE_USERS") ? "/admin/users" : "/admin/activity";
-  const shown = publicNav ? links.filter(([, label]) => ["Home", "Exhibitions"].includes(label)) : links.filter(([, label]) => label !== "Home");
+  const shown = publicNav ? links.filter(([, label]) => ["Home", "Exhibitions"].includes(label)) : links.filter(([, label]) => label !== "Home" && (label !== "Media" || user?.role === "ADMIN" || user?.permissions.includes("VIEW_MEDIA")));
   const onCompanies = pathname.startsWith("/companies");
+  const onMedia = pathname.startsWith("/media");
   async function logout() { await fetch("/api/auth/logout", { method: "POST" }); router.replace("/login"); router.refresh(); }
   return (
     <header className="site-header" ref={headerRef}>
@@ -41,7 +42,7 @@ export function Header({ publicNav = false, user }: { publicNav?: boolean; user?
         <ThemeToggle />
         {!publicNav && user && <div className="account-wrap"><button className="account-button" onClick={() => setAccountOpen((v) => !v)}><CircleUserRound /><span>{user.username}</span><ChevronDown size={15} /></button>{accountOpen && <div className="mini-popover account-popover"><strong>{user.username}</strong><span>{user.role === "ADMIN" ? "Administrator" : "IEC employee"}</span><Link href="/settings/account"><Settings /> Account settings</Link>{canAdmin && <Link href={adminHref}><ShieldCheck /> Administration</Link>}<button onClick={logout}><LogOut /> Sign out</button></div>}</div>}
         {!publicNav && onCompanies && canCreateCompany && <Link href="/companies?add=1" className="button outline add-button"><Plus size={19} /> Add Company</Link>}
-        {!publicNav && !onCompanies && canCreateExhibition && <Link href="/?add=manual" className="button outline add-button"><Plus size={19} /> Add Exhibition</Link>}
+        {!publicNav && !onCompanies && !onMedia && canCreateExhibition && <Link href="/?add=manual" className="button outline add-button"><Plus size={19} /> Add Exhibition</Link>}
       </div>
     </header>
   );

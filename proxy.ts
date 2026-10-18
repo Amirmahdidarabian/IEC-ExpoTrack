@@ -5,7 +5,7 @@ const SESSION_COOKIE = "iec_session";
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const publicApi = pathname === "/api/auth/login" || pathname === "/api/health";
-  const protectedPath = pathname.startsWith("/exhibitions") || pathname.startsWith("/saved") || pathname.startsWith("/admin") || pathname.startsWith("/settings") || (pathname.startsWith("/api/") && !publicApi);
+  const protectedPath = pathname.startsWith("/media") || pathname.startsWith("/exhibitions") || pathname.startsWith("/saved") || pathname.startsWith("/admin") || pathname.startsWith("/settings") || (pathname.startsWith("/api/") && !publicApi);
   if (protectedPath && !request.cookies.has(SESSION_COOKIE)) {
     if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     const login = new URL("/login", request.url);
@@ -15,4 +15,4 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/login", "/exhibitions/:path*", "/saved/:path*", "/admin/:path*", "/settings/:path*", "/api/:path*"] };
+export const config = { matcher: ["/login", "/media/:path*", "/exhibitions/:path*", "/saved/:path*", "/admin/:path*", "/settings/:path*", "/api/:path*"] };

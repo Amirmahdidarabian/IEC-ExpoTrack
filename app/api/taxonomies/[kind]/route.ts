@@ -10,7 +10,7 @@ function parseKind(value: string): TaxonomyKind | null {
 }
 
 export async function GET(_: NextRequest, context: { params: Promise<{ kind: string }> }) {
-  try { await requireAnyPermission([Permission.VIEW_EXHIBITIONS, Permission.VIEW_COMPANIES]); } catch (error) { return errorResponse(error); }
+  try { await requireAnyPermission([Permission.VIEW_EXHIBITIONS, Permission.VIEW_COMPANIES, Permission.VIEW_MEDIA]); } catch (error) { return errorResponse(error); }
   const kind = parseKind((await context.params).kind);
   if (!kind) return NextResponse.json({ error: "Unknown taxonomy." }, { status: 404 });
   try { return NextResponse.json(await listTaxonomies(kind)); }
