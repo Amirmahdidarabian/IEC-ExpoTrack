@@ -47,9 +47,10 @@ export async function getSecurityStatus() {
       { label: "Initial admin bootstrap", state: env.initialAdmin.ok ? "PASS" : "WARNING", summary: env.initialAdmin.summary },
     ] },
     { title: "Data Protection", items: [
-      { label: "Export excludes credentials", state: "PASS", summary: "The versioned export selects exhibition data only." },
+      { label: "Export excludes credentials", state: "PASS", summary: "JSON v2 includes all business sections and safe administrative records, but excludes passwords, sessions and environment secrets." },
       { label: "Import validates schema", state: "PASS", summary: "Strict versioned JSON validation rejects unknown and security-sensitive fields." },
-      { label: "Import size limited", state: "PASS", summary: "Uploads are limited to 10 MB before processing." },
+      { label: "Import size limited", state: "PASS", summary: "JSON uploads are limited to 50 MB before validation; reverse-proxy limits may be lower." },
+      { label: "Restored account protection", state: "PASS", summary: "Existing credentials and access are unchanged; new restored profiles remain disabled until explicitly reset and enabled." },
       { label: "Import runs transactionally", state: "PASS", summary: "A failed restore rolls back without partial data." },
       { label: "Audit log immutable", state: "PASS", summary: "No application route can modify or delete audit records." },
       { label: "Passwords excluded from APIs", state: "PASS", summary: "User responses use explicit safe field selections." },

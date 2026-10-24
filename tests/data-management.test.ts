@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => {
     topic: { findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
     exhibition: { findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
     auditLog: { create: vi.fn() },
+    companyFolder: { findMany: vi.fn() }, company: { findMany: vi.fn() }, mediaOutlet: { findMany: vi.fn() }, user: { findMany: vi.fn() }, companyImportJob: { findMany: vi.fn() }, mediaImportJob: { findMany: vi.fn() },
+    $executeRaw: vi.fn(),
   };
   return { tx, transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)) };
 });
@@ -13,12 +15,12 @@ const mocks = vi.hoisted(() => {
 vi.mock("@/lib/prisma", () => ({ prisma: { ...mocks.tx, $transaction: mocks.transaction } }));
 
 import { createExport, importBackup, previewImport } from "@/lib/data-management/service";
-import { BACKUP_FORMAT, BACKUP_VERSION, parseBackupText, type BackupDocument } from "@/lib/data-management/schema";
+import { BACKUP_FORMAT, parseBackupText, type BackupDocument } from "@/lib/data-management/schema";
 
 const date = "2026-09-26T15:45:00.000Z";
 function backup(): BackupDocument {
   return {
-    format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: date,
+    format: BACKUP_FORMAT, version: 1, exportedAt: date,
     data: {
       categories: [{ id: "cat-1", name: "Energy", normalizedName: "energy", slug: "energy", createdAt: date, updatedAt: date }],
       topics: [{ id: "topic-1", name: "Hydrogen", normalizedName: "hydrogen", slug: "hydrogen", createdAt: date, updatedAt: date }],
@@ -60,6 +62,8 @@ describe("export and import services", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.tx.industryCategory.findMany.mockResolvedValue([]); mocks.tx.topic.findMany.mockResolvedValue([]); mocks.tx.exhibition.findMany.mockResolvedValue([]);
+    for (const model of [mocks.tx.companyFolder, mocks.tx.company, mocks.tx.mediaOutlet, mocks.tx.user, mocks.tx.companyImportJob, mocks.tx.mediaImportJob]) model.findMany.mockResolvedValue([]);
+    Object.assign(mocks.tx.auditLog, { findMany: vi.fn().mockResolvedValue([]) });
     mocks.tx.industryCategory.create.mockResolvedValue({}); mocks.tx.industryCategory.update.mockResolvedValue({}); mocks.tx.topic.create.mockResolvedValue({}); mocks.tx.topic.update.mockResolvedValue({}); mocks.tx.exhibition.create.mockResolvedValue({}); mocks.tx.exhibition.update.mockResolvedValue({}); mocks.tx.auditLog.create.mockResolvedValue({});
   });
   it("exports exhibition relations and follow-up state without security data", async () => {
@@ -67,7 +71,7 @@ describe("export and import services", () => {
     mocks.tx.topic.findMany.mockResolvedValueOnce([{ id: "topic-1", name: "Hydrogen", normalizedName: "hydrogen", slug: "hydrogen", createdAt: new Date(date), updatedAt: new Date(date) }]);
     mocks.tx.exhibition.findMany.mockResolvedValueOnce([{ ...backup().data.exhibitions[0], startDate: new Date("2027-01-01"), endDate: null, preEventEmailSentAt: new Date(date), postEventEmailSentAt: null, createdAt: new Date(date), updatedAt: new Date(date), topics: ["Hydrogen"], categories: [{ categoryId: "cat-1" }], topicLinks: [{ topicId: "topic-1" }], sources: [{ id: "source-1", label: "Official", url: "https://example.com", lastChecked: new Date(date), priority: 1 }] }]);
     const value = await createExport("admin-1"); const serialized = JSON.stringify(value);
-    expect(value).toMatchObject({ format: BACKUP_FORMAT, version: 1, data: { exhibitions: [{ exhibitorList: true, exhibitorListUrl: "https://example.com/exhibitors", preEventEmailSent: true, categoryIds: ["cat-1"], topicIds: ["topic-1"] }] } });
+    expect(value).toMatchObject({ format: BACKUP_FORMAT, version: 2, data: { exhibitions: [{ exhibitorList: true, exhibitorListUrl: "https://example.com/exhibitors", preEventEmailSent: true, categoryIds: ["cat-1"], topicIds: ["topic-1"] }] } });
     expect(serialized).not.toMatch(/passwordHash|passwords|sessions|tokenHash|tokens|AUTH_SECRET|OPENAI_API_KEY|DATABASE_URL|POSTGRES_PASSWORD/);
     expect(mocks.tx.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ actorUserId: "admin-1", action: "EXPORT_DATA" }) });
   });

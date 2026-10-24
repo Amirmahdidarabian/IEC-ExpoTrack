@@ -23,3 +23,5 @@ npm-debug.log*
 .release-check.json
 .tools/
 GITHUB-AND-DEPLOY-FA.md
+__pycache__/
+*.py[cod]

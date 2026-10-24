@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "@/lib/auth/errors";
 import { MAX_IMPORT_BYTES } from "@/lib/data-management/schema";
+import { fullBackup } from "./fixtures/full-backup";
 
 const mocks = vi.hoisted(() => ({
   adminError: null as HttpError | null,
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth/session", () => ({ requireAdminUser: mocks.requireAdminUser }));
 vi.mock("@/lib/data-management/service", () => ({ createExport: mocks.createExport, previewImport: mocks.previewImport, importBackup: mocks.importBackup }));
+vi.mock("@/lib/security/rate-limit", () => ({ consumeRateLimit: vi.fn(), requestIdentifier: vi.fn().mockReturnValue("test-admin") }));
 
 import { POST as exportData } from "@/app/api/admin/data/export/route";
 import { POST as previewData } from "@/app/api/admin/data/preview/route";
@@ -51,5 +53,20 @@ describe("admin data routes", () => {
   it("requires a json extension and accepts a validated json preview", async () => {
     expect((await previewData(upload(valid, "backup.txt"))).status).toBe(415);
     const response = await previewData(upload(valid)); expect(response.status).toBe(200); expect(mocks.previewImport).toHaveBeenCalledOnce();
+  });
+  it("validates and forwards every v2 section through preview and import", async () => {
+    const value = fullBackup();
+    expect((await previewData(upload(value))).status).toBe(200);
+    expect(mocks.previewImport).toHaveBeenCalledWith(value);
+    expect((await importData(upload(value))).status).toBe(200);
+    expect(mocks.importBackup).toHaveBeenCalledWith(value, "admin-1", "backup.json");
+  });
+  it("downloads a private attachment and rejects cross-origin export", async () => {
+    mocks.createExport.mockResolvedValue(fullBackup());
+    const response = await exportData(new NextRequest("http://localhost/api/admin/data/export", { method: "POST" }));
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(response.headers.get("content-disposition")).toContain("attachment;");
+    expect(await response.json()).toMatchObject({ version: 2, data: { companies: [{ id: "company-1" }], media: [{ id: "media-1" }] } });
+    expect((await exportData(new NextRequest("http://localhost/api/admin/data/export", { method: "POST", headers: { origin: "https://attacker.example" } }))).status).toBe(403);
   });
 });

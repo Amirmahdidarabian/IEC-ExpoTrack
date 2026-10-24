@@ -6,9 +6,10 @@ export type CompanySort = typeof companySorts[number];
 
 const booleanParam = z.enum(["true", "false"]).transform((value) => value === "true").optional();
 const querySchema = z.object({
+  folder: z.string().min(1).max(100).optional(),
   q: z.string().trim().max(200).optional(), country: z.string().trim().max(3).optional(), category: z.string().optional(), topic: z.string().optional(),
   exhibition: z.string().optional(), priority: z.enum(["TOP", "HIGH", "MEDIUM", "LOW"]).optional(), sort: z.preprocess((value) => value === "priority-desc" || value === "priority-asc" ? "name-asc" : value, z.enum(companySorts)).default("name-asc"),
-  page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().pipe(z.union([z.literal(25), z.literal(50), z.literal(100)])).default(50),
+  page: z.coerce.number().int().min(1).default(1), pageSize: z.union([z.literal("all"), z.coerce.number().pipe(z.union([z.literal(25), z.literal(50), z.literal(100)]))]).default(50),
   hasContact: booleanParam, hasEmail: booleanParam, hasLinkedIn: booleanParam, hasWebsite: booleanParam,
   minContacts: z.coerce.number().int().min(0).max(10000).optional(), maxContacts: z.coerce.number().int().min(0).max(10000).optional(), company: z.string().optional(),
 });
@@ -18,7 +19,7 @@ export type CompanyQuery = z.infer<typeof querySchema>;
 export function parseCompanyQuery(input: Record<string, string | string[] | undefined>): CompanyQuery {
   const scalar = Object.fromEntries(Object.entries(input).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]).filter(([, value]) => value !== undefined && value !== ""));
   const parsed = querySchema.safeParse(scalar);
-  return parsed.success ? parsed.data : querySchema.parse({});
+  return parsed.success ? { ...parsed.data, page: parsed.data.pageSize === "all" ? 1 : parsed.data.page } : querySchema.parse({});
 }
 
 export function companyWhere(query: CompanyQuery): Prisma.CompanyWhereInput {
@@ -31,6 +32,8 @@ export function companyWhere(query: CompanyQuery): Prisma.CompanyWhereInput {
   ] });
   if (query.country) filters.push({ countryCode: query.country.toUpperCase() });
   if (query.category) filters.push({ categories: { some: { categoryId: query.category } } });
+  if (query.folder === "unfiled") filters.push({ folders: { none: {} } });
+  else if (query.folder && query.folder !== "all") filters.push({ folders: { some: { folderId: query.folder } } });
   if (query.topic) filters.push({ topics: { some: { topicId: query.topic } } });
   if (query.exhibition) filters.push({ exhibitions: { some: { exhibitionId: query.exhibition } } });
   if (query.priority) {

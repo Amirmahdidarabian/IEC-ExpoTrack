@@ -68,6 +68,10 @@ enum AuditAction {
   COMPANY_IMPORT_STARTED
   COMPANY_IMPORT_COMPLETED
   COMPANY_IMPORT_FAILED
+  COMPANY_FOLDER_CREATED
+  COMPANY_FOLDER_UPDATED
+  COMPANY_FOLDER_DELETED
+  COMPANY_FOLDERS_UPDATED
   MEDIA_CREATED
   MEDIA_UPDATED
   MEDIA_DELETED
@@ -91,6 +95,7 @@ enum AuditEntityType {
   COMPANY
   CONTACT
   COMPANY_IMPORT
+  COMPANY_FOLDER
   MEDIA
   MEDIA_CONTACT
   MEDIA_IMPORT
@@ -332,6 +337,7 @@ model Company {
   topics         CompanyTopic[]
   exhibitions    CompanyExhibition[]
   notes          CompanyNote[]
+  folders        CompanyFolderMembership[]
 
   @@index([name])
   @@index([normalizedName])
@@ -341,6 +347,28 @@ model Company {
   @@index([createdAt])
   @@index([updatedAt])
   @@index([createdById])
+}
+
+model CompanyFolder {
+  id             String                    @id @default(cuid())
+  name           String
+  normalizedName String                    @unique
+  description    String                    @default("")
+  color          String                    @default("cyan")
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  companies      CompanyFolderMembership[]
+}
+
+model CompanyFolderMembership {
+  companyId String
+  folderId  String
+  createdAt DateTime      @default(now())
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folder    CompanyFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, folderId])
+  @@index([folderId])
 }
 
 model CompanyContact {

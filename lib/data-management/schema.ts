@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { HttpError } from "@/lib/auth/errors";
+import { exhibitionActorFields, fullDataFields, validateFullData } from "./full-schema";
 
 export const BACKUP_FORMAT = "iec-expotrack" as const;
-export const BACKUP_VERSION = 1 as const;
-export const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
+export const BACKUP_VERSION = 2 as const;
+export const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
 
 const id = z.string().trim().min(1).max(191).regex(/^[A-Za-z0-9_-]+$/, "Invalid stable identifier");
 const shortText = z.string().max(500);
@@ -74,16 +75,24 @@ const exhibitionSchema = z.object({
   if (value.postEventEmailSent && !value.postEventEmailSentAt) context.addIssue({ code: "custom", path: ["postEventEmailSentAt"], message: "Sent post-event email requires a timestamp" });
 });
 
-export const backupSchema = z.object({
+const legacyShape = {
   format: z.literal(BACKUP_FORMAT),
-  version: z.literal(BACKUP_VERSION),
+  version: z.literal(1),
   exportedAt: isoDate,
   data: z.object({
     categories: z.array(taxonomySchema).max(2_000),
     topics: z.array(taxonomySchema).max(10_000),
     exhibitions: z.array(exhibitionSchema).max(25_000),
   }).strict(),
-}).strict().superRefine((backup, context) => {
+};
+const legacySchema = z.object(legacyShape).strict();
+const fullSchema = z.object({
+  ...legacyShape,
+  version: z.literal(BACKUP_VERSION),
+  data: legacyShape.data.extend({ ...fullDataFields, exhibitions: z.array(exhibitionSchema.safeExtend(exhibitionActorFields)).max(25_000) }).strict(),
+}).strict();
+
+export const backupSchema = z.discriminatedUnion("version", [legacySchema, fullSchema]).superRefine((backup, context) => {
   const categoryIds = new Set(backup.data.categories.map((item) => item.id));
   const topicIds = new Set(backup.data.topics.map((item) => item.id));
   checkUnique(backup.data.categories, "id", ["data", "categories"], context);
@@ -100,6 +109,9 @@ export const backupSchema = z.object({
     item.categoryIds.forEach((value) => { if (!categoryIds.has(value)) context.addIssue({ code: "custom", path: ["data", "exhibitions", index, "categoryIds"], message: `Unknown category reference: ${value}` }); });
     item.topicIds.forEach((value) => { if (!topicIds.has(value)) context.addIssue({ code: "custom", path: ["data", "exhibitions", index, "topicIds"], message: `Unknown topic reference: ${value}` }); });
   });
+  const sourceIds = backup.data.exhibitions.flatMap(item => item.sources.map(source => source.id));
+  if (new Set(sourceIds).size !== sourceIds.length) context.addIssue({ code: "custom", path: ["data", "exhibitions"], message: "Duplicate source id" });
+  if (backup.version === 2) validateFullData(backup.data, new Set(backup.data.exhibitions.map(item => item.id)), categoryIds, topicIds, backup.data.exhibitions.map(({ createdById, updatedById, preEventEmailSentById, postEventEmailSentById }) => ({ createdById, updatedById, preEventEmailSentById, postEventEmailSentById })), context);
 });
 
 function checkUnique<T extends Record<string, unknown>>(items: T[], field: keyof T, path: PropertyKey[], context: z.RefinementCtx) {
@@ -112,6 +124,7 @@ function checkUnique<T extends Record<string, unknown>>(items: T[], field: keyof
 }
 
 export type BackupDocument = z.infer<typeof backupSchema>;
+export type FullBackupDocument = Extract<BackupDocument, { version: 2 }>;
 
 function assertSafeJsonStructure(root: unknown) {
   const stack: Array<{ value: unknown; depth: number }> = [{ value: root, depth: 0 }];
@@ -122,7 +135,7 @@ function assertSafeJsonStructure(root: unknown) {
     if (!value || typeof value !== "object") continue;
     for (const key of Object.keys(value)) {
       properties++;
-      if (properties > 500_000) throw new HttpError("Backup JSON is too complex.", 400);
+      if (properties > 2_000_000) throw new HttpError("Backup JSON is too complex.", 400);
       if (["__proto__", "prototype", "constructor"].includes(key)) throw new HttpError("Backup JSON contains a forbidden property.", 400);
       stack.push({ value: (value as Record<string, unknown>)[key], depth: depth + 1 });
     }
@@ -130,6 +143,7 @@ function assertSafeJsonStructure(root: unknown) {
 }
 
 export function parseBackupText(text: string): BackupDocument {
+  if (Buffer.byteLength(text, "utf8") > MAX_IMPORT_BYTES) throw new HttpError("Backup file exceeds the 50 MB limit.", 413);
   let value: unknown;
   try { value = JSON.parse(text.replace(/^\uFEFF/, "")); }
   catch { throw new HttpError("The selected file is not valid JSON.", 400); }

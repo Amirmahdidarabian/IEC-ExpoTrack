@@ -19,13 +19,16 @@ const companyListSelect = {
 } satisfies Prisma.CompanySelect;
 
 export async function listCompanies(query: CompanyQuery) {
-  const countIds = query.sort !== "nearest" && (query.minContacts !== undefined || query.maxContacts !== undefined) ? await contactCountCompanyIds(query.minContacts, query.maxContacts) : null;
+  const countIds = query.minContacts !== undefined || query.maxContacts !== undefined ? await contactCountCompanyIds(query.minContacts, query.maxContacts) : null;
   const baseWhere = companyWhere(query); const where: Prisma.CompanyWhereInput = countIds ? { AND: [baseWhere, { id: { in: countIds } }] } : baseWhere;
-  const skip = (query.page - 1) * query.pageSize;
+  const all = query.pageSize === "all";
+  const page = all ? 1 : query.page;
+  const take = query.pageSize === "all" ? undefined : query.pageSize;
+  const skip = take === undefined ? 0 : (page - 1) * take;
   const now = new Date();
-  const nearestIds = query.sort === "nearest" ? await nearestCompanyIds(query, skip, query.pageSize) : null;
+  const nearestIds = query.sort === "nearest" ? await nearestCompanyIds(query, skip, take) : null;
   const [items, total, companyTotal, countries, industries, countryOptions, categories, topics, exhibitions] = await Promise.all([
-    prisma.company.findMany({ where: nearestIds ? { AND: [where, { id: { in: nearestIds } }] } : where, select: companyListSelect, orderBy: nearestIds ? undefined : companyOrderBy(query.sort), skip: nearestIds ? undefined : skip, take: nearestIds ? undefined : query.pageSize }),
+    prisma.company.findMany({ where: nearestIds ? { AND: [where, { id: { in: nearestIds } }] } : where, select: companyListSelect, orderBy: nearestIds ? undefined : companyOrderBy(query.sort), skip: nearestIds ? undefined : skip, take: nearestIds ? undefined : take }),
     prisma.company.count({ where }), prisma.company.count(), prisma.company.groupBy({ by: ["countryCode"] }), prisma.industryCategory.count({ where: { companies: { some: {} } } }),
     prisma.company.findMany({ distinct: ["countryCode"], where: { countryCode: { not: null } }, select: { countryCode: true, country: true }, orderBy: { countryCode: "asc" } }),
     prisma.industryCategory.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -37,7 +40,7 @@ export async function listCompanies(query: CompanyQuery) {
     items: items.map((item) => ({ ...item, contactsCount: item._count.contacts, categoriesCount: item._count.categories, topicsCount: item._count.topics, exhibitionsCount: item._count.exhibitions,
       categories: item.categories.map((entry) => entry.category), topics: item.topics.map((entry) => entry.topic),
       exhibitions: item.exhibitions.sort((a, b) => Math.abs(a.exhibition.startDate.getTime() - now.getTime()) - Math.abs(b.exhibition.startDate.getTime() - now.getTime())), _count: undefined })),
-    total, page: query.page, pageSize: query.pageSize, pageCount: Math.max(1, Math.ceil(total / query.pageSize)),
+    total, page, pageSize: query.pageSize, pageCount: take === undefined ? 1 : Math.max(1, Math.ceil(total / take)),
     stats: { total: companyTotal, countries: countries.filter((item) => item.countryCode).length, industries },
     options: { countries: countryOptions, categories, topics, exhibitions },
   };
@@ -50,11 +53,13 @@ async function contactCountCompanyIds(minimum?: number, maximum?: number) {
   return rows.map((row) => row.id);
 }
 
-async function nearestCompanyIds(query: CompanyQuery, skip: number, take: number) {
+async function nearestCompanyIds(query: CompanyQuery, skip: number, take: number | undefined) {
   const conditions: Prisma.Sql[] = [];
   if (query.q) { const term = `%${query.q}%`; conditions.push(Prisma.sql`(c."name" ILIKE ${term} OR c."normalizedName" ILIKE ${term} OR c."domain" ILIKE ${term} OR c."website" ILIKE ${term} OR c."country" ILIKE ${term} OR EXISTS (SELECT 1 FROM "CompanyContact" cc WHERE cc."companyId" = c."id" AND (cc."firstName" ILIKE ${term} OR cc."lastName" ILIKE ${term} OR cc."email" ILIKE ${term})) OR EXISTS (SELECT 1 FROM "CompanyCategory" ck JOIN "IndustryCategory" k ON k."id" = ck."categoryId" WHERE ck."companyId" = c."id" AND k."name" ILIKE ${term}) OR EXISTS (SELECT 1 FROM "CompanyTopic" ct JOIN "Topic" t ON t."id" = ct."topicId" WHERE ct."companyId" = c."id" AND t."name" ILIKE ${term}))`); }
   if (query.country) conditions.push(Prisma.sql`c."countryCode" = ${query.country.toUpperCase()}`);
   if (query.category) conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "CompanyCategory" ck WHERE ck."companyId" = c."id" AND ck."categoryId" = ${query.category})`);
+  if (query.folder === "unfiled") conditions.push(Prisma.sql`NOT EXISTS (SELECT 1 FROM "CompanyFolderMembership" fm WHERE fm."companyId" = c."id")`);
+  else if (query.folder && query.folder !== "all") conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "CompanyFolderMembership" fm WHERE fm."companyId" = c."id" AND fm."folderId" = ${query.folder})`);
   if (query.topic) conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "CompanyTopic" ct WHERE ct."companyId" = c."id" AND ct."topicId" = ${query.topic})`);
   if (query.exhibition) conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "CompanyExhibition" ce WHERE ce."companyId" = c."id" AND ce."exhibitionId" = ${query.exhibition})`);
   if (query.priority) { const ranges = { TOP: [90, 100], HIGH: [75, 89], MEDIUM: [50, 74], LOW: [0, 49] } as const; conditions.push(Prisma.sql`c."priorityScore" BETWEEN ${ranges[query.priority][0]} AND ${ranges[query.priority][1]}`); }
@@ -65,13 +70,15 @@ async function nearestCompanyIds(query: CompanyQuery, skip: number, take: number
   if (query.minContacts !== undefined) conditions.push(Prisma.sql`(SELECT COUNT(*) FROM "CompanyContact" cc WHERE cc."companyId" = c."id") >= ${query.minContacts}`);
   if (query.maxContacts !== undefined) conditions.push(Prisma.sql`(SELECT COUNT(*) FROM "CompanyContact" cc WHERE cc."companyId" = c."id") <= ${query.maxContacts}`);
   const whereSql = conditions.length ? Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}` : Prisma.empty;
-  const rows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`SELECT c."id" FROM "Company" c ${whereSql} ORDER BY (SELECT MIN(e."startDate") FROM "CompanyExhibition" ce JOIN "Exhibition" e ON e."id" = ce."exhibitionId" WHERE ce."companyId" = c."id" AND e."startDate" >= CURRENT_TIMESTAMP) ASC NULLS LAST, c."priorityScore" DESC NULLS LAST, c."name" ASC, c."id" ASC LIMIT ${take} OFFSET ${skip}`);
+  const paginationSql = take === undefined ? Prisma.empty : Prisma.sql`LIMIT ${take} OFFSET ${skip}`;
+  const rows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`SELECT c."id" FROM "Company" c ${whereSql} ORDER BY (SELECT MIN(e."startDate") FROM "CompanyExhibition" ce JOIN "Exhibition" e ON e."id" = ce."exhibitionId" WHERE ce."companyId" = c."id" AND e."startDate" >= CURRENT_TIMESTAMP) ASC NULLS LAST, c."priorityScore" DESC NULLS LAST, c."name" ASC, c."id" ASC ${paginationSql}`);
   return rows.map((row) => row.id);
 }
 
 export async function getCompany(id: string) {
   return prisma.company.findUnique({ where: { id }, include: {
     contacts: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, socialLinks: { orderBy: { platform: "asc" } },
+    folders: { include: { folder: { select: { id: true, name: true, color: true } } }, orderBy: { folder: { name: "asc" } } },
     categories: { include: { category: true }, orderBy: { category: { name: "asc" } } }, topics: { include: { topic: true }, orderBy: { topic: { name: "asc" } } },
     exhibitions: { include: { exhibition: { select: { id: true, slug: true, name: true, country: true, city: true, startDate: true, endDate: true } } }, orderBy: { exhibition: { startDate: "asc" } } },
     notes: { include: { createdBy: { select: { username: true } } }, orderBy: { createdAt: "desc" } },
@@ -95,6 +102,7 @@ export async function createCompany(raw: unknown, actorId: string, allowDuplicat
   return prisma.$transaction(async (tx) => {
     const company = await tx.company.create({ data: { ...scalarData(input), saved: input.saved ?? false, createdById: actorId,
       categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) }, topics: { create: input.topicIds.map((topicId) => ({ topicId })) },
+      folders: { create: [...new Set(input.folderIds ?? [])].map((folderId) => ({ folderId })) },
       socialLinks: { create: input.socialLinks }, contacts: input.initialContact ? { create: { ...input.initialContact, email: normalizeEmail(input.initialContact.email) } } : undefined }, select: { id: true, name: true } });
     await tx.auditLog.create({ data: { actorUserId: actorId, action: "COMPANY_CREATED", entityType: "COMPANY", entityId: company.id, entityLabel: company.name, description: `Created company ${company.name}` } });
     return company;
@@ -110,6 +118,7 @@ export async function updateCompany(id: string, raw: unknown, actorId: string, a
       socialLinks: { deleteMany: {}, create: input.socialLinks },
       categories: { deleteMany: {}, create: [...new Set(input.categoryIds)].map((categoryId) => ({ categoryId })) },
       topics: { deleteMany: {}, create: [...new Set(input.topicIds)].map((topicId) => ({ topicId })) },
+      ...(input.folderIds ? { folders: { deleteMany: {}, create: [...new Set(input.folderIds)].map((folderId) => ({ folderId })) } } : {}),
     }, select: { id: true, name: true } });
     await tx.auditLog.create({ data: { actorUserId: actorId, action: "COMPANY_UPDATED", entityType: "COMPANY", entityId: id, entityLabel: company.name, description: `Updated company ${company.name}` } }); return company;
   });

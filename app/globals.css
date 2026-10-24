@@ -934,6 +934,18 @@ html[data-theme="light"] .deck-scroll-hint, html[data-theme="light"] .home-publi
 .import-results span { color: var(--muted); font-size: 9px; }
 .import-preview { overflow: auto; max-height: 240px; border: 1px solid var(--border); border-radius: 10px; }
 .import-preview h3 { position: sticky; top: 0; margin: 0; padding: 10px; background: var(--surface); font-size: 11px; }
+/* The full admin backup preview is separate from the compact Excel row preview. */
+.data-management-grid > .data-card { min-width: 0; }
+.data-card .backup-security { border-left: 3px solid var(--cyan); padding: 10px 14px; background: rgba(0, 217, 255, .05); font-size: 12px; }
+.data-management-grid .backup-preview { max-height: none; overflow: visible; padding: 18px 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; }
+.data-management-grid .backup-preview > .section-heading { display: flex; grid-template-columns: none; padding: 0; border: 0; gap: 12px; }
+.data-management-grid .backup-preview h3 { position: static; padding: 0; background: transparent; font-size: 18px; }
+.data-management-grid .backup-preview > .import-warnings { display: flex; grid-template-columns: none; padding: 12px; gap: 10px; }
+.data-management-grid .backup-preview > .preview-actions { display: flex; grid-template-columns: none; border: 0; padding: 0; gap: 10px; }
+.data-management-grid .backup-preview dt, .import-confirm-modal dt { overflow-wrap: anywhere; }
+.data-management-grid .backup-preview .import-warnings > svg, .import-result > svg { flex-shrink: 0; }
+.data-management-grid .import-result > div { min-width: 0; }
+.import-confirm-modal { max-height: 90dvh; overflow-y: auto; }
 .import-preview > div { display: grid; grid-template-columns: 1.3fr 1fr 1fr .7fr; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--border); font-size: 10px; }
 .import-preview span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .import-policy { margin: -8px 0 0; color: var(--muted); font-size: 10px; }

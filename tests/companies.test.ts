@@ -45,6 +45,9 @@ describe("company query parsing", () => {
   });
   it("falls back safely when query parameters are invalid", () => expect(parseCompanyQuery({ page: "-10", pageSize: "5000", sort: "unsafe" })).toMatchObject({ page: 1, pageSize: 50, sort: "name-asc" }));
   it("maps legacy priority sorting to company name sorting", () => expect(parseCompanyQuery({ sort: "priority-desc" })).toMatchObject({ sort: "name-asc" }));
+  it("accepts All and resets pagination while preserving folder and filters", () => {
+    expect(parseCompanyQuery({ folder: "folder-one", q: "rov", hasEmail: "true", sort: "nearest", pageSize: "all", page: "999" })).toMatchObject({ folder: "folder-one", q: "rov", hasEmail: true, sort: "nearest", pageSize: "all", page: 1 });
+  });
 });
 
 describe("Excel mapping", () => {

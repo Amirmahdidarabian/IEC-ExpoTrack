@@ -19,6 +19,7 @@ export const companySchema = z.object({
   name: z.string().trim().min(1).max(240), website: optionalWebsite, countryCode: z.preprocess(emptyToNull, z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/).nullable().optional()), country: optionalShort,
   description: optionalText, priorityScore: z.number().int().min(0).max(100).nullable().optional(), saved: z.boolean().optional(),
   categoryIds: z.array(z.string().min(1)).max(100).default([]), topicIds: z.array(z.string().min(1)).max(200).default([]),
+  folderIds: z.array(z.string().min(1).max(100)).max(100).optional(),
   socialLinks: z.array(z.object({ platform: z.nativeEnum(CompanySocialPlatform), url: z.string().url().max(2048) })).max(20).default([]),
   initialContact: contactSchema.nullable().optional(),
 });

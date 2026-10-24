@@ -31,7 +31,7 @@ To validate a separately prepared, untracked production file without replacing t
 
 The `deepmerge-ts` override in `package.json` patches GHSA-ggr8-5vv4-36mx in Prisma's CLI-only configuration loader. Remove the override after the installed `@prisma/config` release depends on `deepmerge-ts` 8 or newer, then confirm `npm run prod:check` remains green.
 
-Next.js and its lint config require at least 16.3.8; Vitest requires at least 4.1.11. Security overrides update `sharp`, `source-map-js` and ExcelJS's CommonJS-compatible `uuid` dependency. The Next ESLint plugin's sole glob consumer calls `globSync(pattern, { onlyDirectories: true })`; its `fast-glob` dependency is replaced by `tinyglobby` using an npm alias to eliminate the unpatched `braces` chain while retaining the Next rules. This is scoped to that plugin, not a general drop-in replacement for every fast-glob API. Review the override and compatibility tests when upgrading the plugin. See [the braces advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) and [tinyglobby's API](https://github.com/SuperchupuDev/tinyglobby).
+Next.js and its lint config require at least 16.4.3; Vitest requires at least 4.1.12 and Zod at least 4.6.7. These versions address the October 2026 dependency advisories: [Next.js](https://github.com/vercel/next.js/security/advisories/GHSA-673q-mjm6-r5xr), [Zod](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) and [Vitest](https://github.com/advisories/GHSA-xp26-3454-mjgp). Security overrides update `sharp`, `source-map-js` and ExcelJS's CommonJS-compatible `uuid` dependency. The Next ESLint plugin's sole glob consumer calls `globSync(pattern, { onlyDirectories: true })`; its `fast-glob` dependency is replaced by `tinyglobby` using an npm alias to eliminate the unpatched `braces` chain while retaining the Next rules. This is scoped to that plugin, not a general drop-in replacement for every fast-glob API. Review the override and compatibility tests when upgrading the plugin. See [the braces advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) and [tinyglobby's API](https://github.com/SuperchupuDev/tinyglobby).
 
 Gitleaks must be installed or Docker Desktop/the Docker daemon must be running. CI runs Gitleaks independently on every pull request to `main`.
 
@@ -96,7 +96,13 @@ If Gitleaks reports a real credential in any commit, treat it as compromised. Ro
 
 ## Operational checks
 
-- Backups: use **Administration → Data Management**, export a JSON backup, and periodically verify restore in a non-production database.
+For repeatable Ubuntu deployments by branch name, see [IEC Deploy](deploy/DEPLOYER-FA.md).
+Its installer does not deploy the app. `sudo iec-deploy` opens a terminal version menu
+showing GitHub branches, commit details and the actual running image revision. After
+explicit confirmation it runs a locked, systemd-managed deployment with a fresh backup, pinned commit, image rollback
+preparation and health checks. It never automatically restores the database.
+
+- Backups: use **Administration → Data Management** for full application JSON v2 (Exhibitions, Companies, Media, Saved and safe administrative records); see [JSON-BACKUP.md](JSON-BACKUP.md) for restore behavior and credential exclusions. Keep verified PostgreSQL dumps for disaster recovery and periodically verify restores in an isolated non-production database.
 - Updates: run `npm audit --audit-level=high` and the full `npm run prod:check` before deployment.
 - Logs: review **Administration → Activity Logs**; application routes do not permit editing or deleting these entries.
 - Status: review **Administration → System & Security** after configuration changes.
