@@ -33,6 +33,14 @@ jobs:
       - run: npm run build
       - run: npm run env:check
 
+  container-permissions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # No application secrets or database are supplied to these throwaway images.
+      - run: python3 -B scripts/docker-permissions-integration.py
+
   dependency-audit:
     runs-on: ubuntu-latest
     steps:

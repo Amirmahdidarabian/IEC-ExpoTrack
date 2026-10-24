@@ -22,7 +22,7 @@ from urllib.parse import quote, urlsplit
 from urllib.request import ProxyHandler, Request, build_opener
 import uuid
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 COMPOSE = "docker-compose.production.yml"
 APPROVED_ORIGINS = {"https://github.com/Amirmahdidarabian/IEC-ExpoTrack.git",
                     "https://github.com/Amirmahdidarabian/IEC-ExpoTrack",
@@ -31,6 +31,34 @@ JOB_PATTERN = re.compile(r"\d{8}T\d{6}Z-[a-f0-9]{8}\Z")
 TERMINAL = {"succeeded", "failed", "rolled_back", "needs_attention"}
 MIGRATION_SQL = ('SELECT migration_name, checksum, (finished_at IS NOT NULL)::int, '
                  '(rolled_back_at IS NOT NULL)::int FROM "_prisma_migrations" ORDER BY migration_name, id')
+# Runs with the image's own non-root user, with no secrets, mounts or database access.
+# Embed it in the tool so checks also work for older releases without a probe script.
+IMAGE_FILES_CHECK = r"""
+const fs = require('node:fs');
+try {
+  if (typeof process.getuid !== 'function' || process.getuid() === 0) throw new Error('ROOT_USER');
+  let files = 0;
+  const visited = new Set();
+  function check(path) {
+    const real = fs.realpathSync(path);
+    if (visited.has(real)) return;
+    visited.add(real);
+    const stat = fs.statSync(path);
+    if (stat.isDirectory()) {
+      fs.accessSync(path, fs.constants.R_OK | fs.constants.X_OK);
+      for (const name of fs.readdirSync(path)) check(path + '/' + name);
+    } else if (stat.isFile()) {
+      const fd = fs.openSync(path, 'r'); fs.closeSync(fd); files++;
+    } else throw new Error('UNSUPPORTED_FILE');
+  }
+  for (const path of ['/app/public', '/app/.next/static', '/app/node_modules/.prisma/client',
+                      '/app/server.js', '/app/scripts/docker-start.mjs', '/app/scripts/runtime-env.mjs']) check(path);
+  console.log('Non-root runtime file access OK (' + files + ' files)');
+} catch (error) {
+  console.error('Runtime file access check failed: ' + (error.code || error.message));
+  process.exit(1);
+}
+"""
 
 
 class DeployError(Exception):
@@ -80,6 +108,14 @@ def file_hash(path: Path) -> str:
 def extract_source(archive: Path, destination: Path) -> None:
     """Only tracked, pinned Git files enter Docker's build context; never .env/untracked data."""
     destination.mkdir(mode=0o700)
+    def source_directory(path: Path) -> None:
+        # mkdir(mode=0755) is still masked by systemd's UMask=0077. Explicitly
+        # normalize only tracked-source children; keep the context/job roots private.
+        current = destination
+        for part in path.relative_to(destination).parts:
+            current = current / part
+            current.mkdir(exist_ok=True, mode=0o755)
+            current.chmod(0o755)
     with tarfile.open(archive, "r|") as source:
         for member in source:
             name = PurePosixPath(member.name)
@@ -89,9 +125,9 @@ def extract_source(archive: Path, destination: Path) -> None:
             if not target.resolve().is_relative_to(destination.resolve()):
                 raise DeployError("Release archive escaped its isolated build directory.")
             if member.isdir():
-                target.mkdir(parents=True, exist_ok=True, mode=0o755)
+                source_directory(target)
             else:
-                target.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+                source_directory(target.parent)
                 with source.extractfile(member) as reader, target.open("xb") as output:
                     shutil.copyfileobj(reader, output, 1024 * 1024)
                 target.chmod(0o755 if member.mode & 0o111 else 0o644)
@@ -324,12 +360,25 @@ class Deployment:
             container = self.runner.capture(self.compose("ps", "-a", "-q", "app", previous=previous, candidate=not previous))
             if container:
                 status = json.loads(self.runner.capture(["docker", "inspect", container]))[0]["State"]
-                if status.get("Health", {}).get("Status") == "healthy":
+                if status.get("Status") in {"exited", "dead", "restarting"}:
+                    raise DeployError(f"App stopped or is restarting (exit code {status.get('ExitCode', 'unknown')}, "
+                                      f"OOMKilled={bool(status.get('OOMKilled', False))}). Inspect app logs; this was not a 120-second timeout.")
+                if status.get("Health", {}).get("Status") == "unhealthy":
+                    raise DeployError("App healthcheck failed. Inspect app logs; this was not a 120-second timeout.")
+                if status.get("Status") == "running" and status.get("Health", {}).get("Status") == "healthy":
                     return
-                if status.get("Status") in {"exited", "dead"} or status.get("Health", {}).get("Status") == "unhealthy":
-                    break
             time.sleep(2)
         raise DeployError("App did not become healthy within 120 seconds.")
+
+    def verify_image_files(self, image_id: str) -> None:
+        try:
+            output = self.runner.capture(["docker", "run", "--rm", "--network", "none", "--read-only",
+                                          "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+                                          "--entrypoint", "node", image_id, "-e", IMAGE_FILES_CHECK], timeout=60)
+        except DeployError as error:
+            raise DeployError("Non-root image file check failed before migrations or app replacement. "
+                              "Verify public/fonts, static assets and runtime file permissions in the Dockerfile.") from error
+        self.log.write(output)
 
     def prepare(self) -> dict:
         self.stage("Preflight", status="running")
@@ -474,6 +523,8 @@ class Deployment:
             if (built["Config"].get("User", "").split(":")[0] in {"", "0", "root"}
                     or built["Config"].get("Labels", {}).get("org.opencontainers.image.revision") != target):
                 raise DeployError("Built app must be non-root and labeled with the pinned commit.")
+            self.stage("Checking runtime file access as the image's non-root user before migrations")
+            self.verify_image_files(built["Id"])
             if file_hash(self.settings.repo / ".env") != self.state["env_checksum"]:
                 raise DeployError(".env changed during deployment; refusing cutover.")
             if self.git("rev-parse", "HEAD") != target or self.git("status", "--porcelain"):

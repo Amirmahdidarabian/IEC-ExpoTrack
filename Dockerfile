@@ -30,6 +30,11 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@countrystatecity/countries ./node_modules/@countrystatecity/countries
 COPY --from=builder /app/scripts/runtime-env.mjs ./scripts/runtime-env.mjs
 COPY --from=builder /app/scripts/docker-start.mjs ./scripts/docker-start.mjs
+# Build contexts exported under a private deployer's umask may contain 0700
+# directories. Public assets must be readable/traversable by the non-root server.
+# Keep root ownership and do not grant write access to the app user.
+RUN find /app/public -type d -exec chmod 755 {} + \
+ && find /app/public -type f -exec chmod 644 {} +
 USER nextjs
 EXPOSE 3000
 CMD ["node", "scripts/docker-start.mjs"]

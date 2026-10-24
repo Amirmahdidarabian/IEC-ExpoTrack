@@ -109,6 +109,49 @@ class Fixture(unittest.TestCase):
 
 
 class PrivacyTests(Fixture):
+    @unittest.skipUnless(os.name == "posix", "Real Linux permission bits required")
+    def test_private_umask_keeps_state_private_but_makes_tracked_directories_readable(self):
+        archive = self.directory / "private-umask.tar"
+        with tarfile.open(archive, "w") as output:
+            for name in ["public/", "public/fonts/", "public/fonts/nested/"]:
+                member = tarfile.TarInfo(name)
+                member.type, member.mode = tarfile.DIRTYPE, 0o700
+                output.addfile(member)
+            for name, mode in [("public/fonts/nested/font.woff2", 0o600), ("scripts/run.sh", 0o700)]:
+                member = tarfile.TarInfo(name)
+                member.mode, member.size = mode, 7
+                output.addfile(member, io.BytesIO(b"fixture"))
+        source = self.directory / "source"
+        before = os.umask(0o077)
+        try:
+            app.extract_source(archive, source)
+            private = self.directory / "still-private.json"
+            private.write_text("fixture")
+        finally:
+            os.umask(before)
+        self.assertEqual(source.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(private.stat().st_mode & 0o777, 0o600)
+        for name in ["public", "public/fonts", "public/fonts/nested", "scripts"]:
+            self.assertEqual((source / name).stat().st_mode & 0o777, 0o755)
+        self.assertEqual((source / "public/fonts/nested/font.woff2").stat().st_mode & 0o777, 0o644)
+        self.assertEqual((source / "scripts/run.sh").stat().st_mode & 0o777, 0o755)
+
+    @unittest.skipUnless(os.name == "posix", "Real Linux permission bits required")
+    def test_implicit_archive_parent_directories_ignore_private_umask(self):
+        archive = self.directory / "implicit.tar"
+        with tarfile.open(archive, "w") as output:
+            member = tarfile.TarInfo("public/fonts/nested/font.woff2")
+            member.size = 1
+            output.addfile(member, io.BytesIO(b"x"))
+        source = self.directory / "source"
+        before = os.umask(0o077)
+        try:
+            app.extract_source(archive, source)
+        finally:
+            os.umask(before)
+        for name in ["public", "public/fonts", "public/fonts/nested"]:
+            self.assertEqual((source / name).stat().st_mode & 0o777, 0o755)
+
     def test_archive_extraction_excludes_untracked_environment(self):
         archive = self.directory / "source.tar"
         with tarfile.open(archive, "w") as output:
@@ -226,6 +269,22 @@ class WorkflowTests(Fixture):
         self.assertEqual(self.deploy.runner.stream.call_count, 1)
         self.assertFalse(self.deploy.cutover)
 
+    def test_image_permissions_are_checked_before_migrations_or_cutover(self):
+        events = []
+        self.deploy.runner.stream.side_effect = lambda command, **kwargs: events.append("build" if "build" in command else "migration" if "migrate" in command else "cutover")
+        self.deploy.verify_image_files = Mock(side_effect=lambda image: events.append("file-check"))
+        self.assertEqual(self.deploy.run(), 0)
+        self.assertEqual(events, ["build", "file-check", "migration", "cutover"])
+        self.deploy.verify_image_files.assert_called_once_with("sha256:new")
+
+    def test_unreadable_image_leaves_database_and_running_app_untouched(self):
+        self.deploy.verify_image_files = Mock(side_effect=app.DeployError("font EACCES"))
+        self.assertEqual(self.deploy.run(), 1)
+        self.assertEqual(self.state["status"], "failed")
+        self.assertEqual(self.deploy.runner.stream.call_count, 1)
+        self.assertFalse(self.deploy.cutover)
+        self.deploy.migrations.assert_not_called()
+
     def test_failed_migration_leaves_old_app_running(self):
         self.deploy.runner.stream.side_effect = [None, app.DeployError("migration failed")]
         self.assertEqual(self.deploy.run(), 1)
@@ -280,6 +339,42 @@ class WorkflowTests(Fixture):
         self.deploy.runner.capture.side_effect = None
         self.assertEqual(self.deploy.run(), 1)
         self.assertEqual(self.deploy.runner.stream.call_count, 1)
+
+
+class ImageAndHealthTests(Fixture):
+    def test_image_probe_uses_actual_non_root_user_without_secrets_or_network(self):
+        self.deploy.runner = Mock(spec=app.Runner)
+        self.deploy.runner.capture.return_value = "Non-root runtime file access OK"
+        self.deploy.verify_image_files("sha256:candidate")
+        command = self.deploy.runner.capture.call_args.args[0]
+        self.assertEqual(command[:7], ["docker", "run", "--rm", "--network", "none", "--read-only", "--cap-drop"])
+        self.assertIn("no-new-privileges:true", command)
+        self.assertEqual(command[-3:], ["sha256:candidate", "-e", app.IMAGE_FILES_CHECK])
+        for forbidden in ["--env", "--env-file", "-e", "--mount", "-v", "--user"]:
+            self.assertNotIn(forbidden, command[:-2])
+        self.assertIn("/app/public", app.IMAGE_FILES_CHECK)
+        self.assertIn("process.getuid() === 0", app.IMAGE_FILES_CHECK)
+
+    def test_image_probe_failure_has_safe_actionable_diagnostic(self):
+        self.deploy.runner = Mock(spec=app.Runner)
+        self.deploy.runner.capture.side_effect = app.DeployError("command failed")
+        with self.assertRaisesRegex(app.DeployError, "before migrations or app replacement"):
+            self.deploy.verify_image_files("sha256:candidate")
+
+    def test_crashed_or_unhealthy_app_reports_actual_failure_not_timeout(self):
+        for state in [{"Status": "restarting", "ExitCode": 1, "OOMKilled": False}, {"Status": "exited", "ExitCode": 1}, {"Status": "running", "Health": {"Status": "unhealthy"}}, {"Status": "restarting", "Health": {"Status": "healthy"}}]:
+            self.deploy.runner = Mock(spec=app.Runner)
+            self.deploy.runner.capture.side_effect = ["app-id", json.dumps([{"State": state}])]
+            with self.subTest(state=state), patch.object(app.time, "sleep") as sleep, self.assertRaisesRegex(app.DeployError, "not a 120-second timeout"):
+                self.deploy.wait_healthy()
+            sleep.assert_not_called()
+
+    def test_genuinely_starting_app_can_time_out(self):
+        self.deploy.runner = Mock(spec=app.Runner)
+        self.deploy.runner.capture.side_effect = ["app-id", json.dumps([{"State": {"Status": "running", "Health": {"Status": "starting"}}}])] * 60
+        with patch.object(app.time, "sleep") as sleep, self.assertRaisesRegex(app.DeployError, "within 120 seconds"):
+            self.deploy.wait_healthy()
+        self.assertEqual(sleep.call_count, 60)
 
 
 class BackupTests(Fixture):
