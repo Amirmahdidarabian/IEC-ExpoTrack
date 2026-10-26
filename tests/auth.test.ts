@@ -31,6 +31,14 @@ describe("authorization", () => {
     expect(effectivePermissions(admin)).toEqual(expect.arrayContaining(Object.values(Permission)));
     expect(Object.values(Permission).every((permission) => hasPermission(admin, permission))).toBe(true);
   });
+  it("allows explicitly assigned Media viewing without granting Media mutations or administration", () => {
+    const mediaViewer = { ...viewer, permissions: [...viewer.permissions, Permission.VIEW_MEDIA] };
+    expect(hasPermission(viewer, Permission.VIEW_MEDIA)).toBe(false);
+    expect(hasPermission(mediaViewer, Permission.VIEW_MEDIA)).toBe(true);
+    for (const permission of [Permission.CREATE_MEDIA, Permission.UPDATE_MEDIA, Permission.DELETE_MEDIA, Permission.IMPORT_MEDIA, Permission.MANAGE_USERS]) {
+      expect(hasPermission(mediaViewer, permission)).toBe(false);
+    }
+  });
 });
 
 describe("account validation", () => {

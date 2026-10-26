@@ -2,11 +2,9 @@
 
 import { FormEvent, useState } from "react";
 import { Check, KeyRound, UserPlus } from "lucide-react";
+import { ALL_PERMISSIONS, permissionLabels } from "@/lib/auth/permissions";
 
-const permissions = [
-  ["VIEW_EXHIBITIONS", "View exhibitions"], ["CREATE_EXHIBITIONS", "Create exhibitions"], ["UPDATE_EXHIBITIONS", "Update exhibitions and email status"], ["DELETE_EXHIBITIONS", "Delete exhibitions"],
-  ["VIEW_ADMIN_DASHBOARD", "View admin dashboard"], ["MANAGE_USERS", "Manage users"], ["VIEW_AUDIT_LOGS", "View activity logs"],
-] as const;
+const permissions = ALL_PERMISSIONS.map((permission) => [permission, permissionLabels[permission]] as const);
 
 type ManagedUser = { id: string; username: string; role: "ADMIN" | "USER"; isActive: boolean; mustChangePassword: boolean; createdAt: string; updatedAt: string; lastLoginAt: string | null; permissions: string[] };
 
